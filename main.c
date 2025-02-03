@@ -25,17 +25,25 @@ int main() {
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     glewInit(); // initialize GLEW
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
     // configure camera and set aspect
     CameraCfg camera_cfg;
     CameraCfg_init(&camera_cfg, window, CAMERA_FOV, CAMERA_Z_NEAR, CAMERA_Z_FAR);
     Camera camera;
     Camera_init(&camera, EARTH_RAD * 2.f);
     Camera_perspective(&camera, camera_cfg);
+    // set up earth texture
+    BitmapImage earth_img;
+    int failed = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
+    if(failed) abort();
+    GLuint earth_tex_id;
+    BitmapImage_build_texture(earth_img, &earth_tex_id);
     // initialize earth mesh
     Globe earth = Globe_generate((GlobeProp) { .slices = 6, .stacks = 4, .rad = EARTH_RAD });
     // configure earth buffers
     GLuint VAO, VBO, EBO;
-    Globe_configure_buffers(earth, 0, &VAO, &VBO, &EBO);
+    Globe_configure_buffers(earth, &VAO, &VBO, &EBO);
     Globe_free(earth);
     // configure globe shaders
     const char* earth_vert_shader = read_file_contents("./shaders/globe.vs");
@@ -47,6 +55,9 @@ int main() {
     free((char*) earth_vert_shader);
     free((char*) earth_frag_shader);
     glUseProgram(earth_shader_program);
+    // pass the sampler for the earth texture
+    GLuint samplerLoc = glGetUniformLocation(earth_shader_program, "sampler");
+    glUniform1i(samplerLoc, 0);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -60,6 +71,7 @@ int main() {
         // clear the display
         glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_DEPTH_BUFFER_BIT);
         // draw the earth
         Globe_draw(earth, VAO);
         // conclude path
