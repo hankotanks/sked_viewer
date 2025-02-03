@@ -51,16 +51,32 @@ GLuint compile_shader(GLenum type, const char* source) {
     glCompileShader(shader);
     GLint success;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-    if(!success) return (GLuint) 0;
+    if(!success) {
+        glDeleteShader(shader);
+        return (GLuint) 0;
+    }
     return shader;
 }
 
 GLuint compile_shader_program(const char* vert, const char* frag) {
     GLuint program = glCreateProgram();
-    GLuint vert_shader = compile_shader(GL_VERTEX_SHADER, vert);
-    if(vert[0] != '\0') glAttachShader(program, vert_shader);
-    GLuint frag_shader = compile_shader(GL_FRAGMENT_SHADER, frag);
-    if(frag[0] != '\0') glAttachShader(program, frag_shader);
+    if(!program) return (GLuint) 0;
+    unsigned int skipped = 0;
+    GLuint vert_shader, frag_shader;
+    if(vert[0] != '\0') {
+        vert_shader = compile_shader(GL_VERTEX_SHADER, vert);
+        if(!vert_shader) return (GLuint) 0;
+        glAttachShader(program, vert_shader);
+    } else skipped = 1;
+    if(frag[0] == '\0' && skipped) return (GLuint) 0;
+    else {
+        frag_shader = compile_shader(GL_FRAGMENT_SHADER, frag);
+        if(!frag_shader) {
+            glDeleteShader(vert_shader);
+            return (GLuint) 0;
+        }
+        glAttachShader(program, frag_shader);
+    }
     glLinkProgram(program);
     GLint success;
     glGetProgramiv(program, GL_LINK_STATUS, &success);
@@ -87,7 +103,6 @@ void BitmapImage_build_texture(BitmapImage img, GLuint* id) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_BGR, GL_UNSIGNED_BYTE, img.data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 // Sourced BMP parser from https://www.opengl-tutorial.org/beginners-tutorials/tutorial-5-a-textured-cube/

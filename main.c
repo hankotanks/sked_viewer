@@ -37,10 +37,11 @@ int main() {
     BitmapImage earth_img;
     int failed = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
     if(failed) abort();
+    glActiveTexture(GL_TEXTURE0);
     GLuint earth_tex_id;
     BitmapImage_build_texture(earth_img, &earth_tex_id);
     // initialize earth mesh
-    Globe earth = Globe_generate((GlobeProp) { .slices = 6, .stacks = 4, .rad = EARTH_RAD });
+    Globe earth = Globe_generate((GlobeProp) { .slices = 16, .stacks = 12, .rad = EARTH_RAD });
     // configure earth buffers
     GLuint VAO, VBO, EBO;
     Globe_configure_buffers(earth, &VAO, &VBO, &EBO);
@@ -56,8 +57,8 @@ int main() {
     free((char*) earth_frag_shader);
     glUseProgram(earth_shader_program);
     // pass the sampler for the earth texture
-    GLuint samplerLoc = glGetUniformLocation(earth_shader_program, "sampler");
-    glUniform1i(samplerLoc, 0);
+    GLuint earth_sampler_loc = glGetUniformLocation(earth_shader_program, "globe_sampler");
+    glUniform1i(earth_sampler_loc, 0);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -69,7 +70,7 @@ int main() {
         // update view and proj uniforms
         Camera_update(&camera, earth_shader_program);
         // clear the display
-        glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+        glClearColor(0.f, 0.f, 0.f, 1.f);
         glClear(GL_COLOR_BUFFER_BIT);
         glClear(GL_DEPTH_BUFFER_BIT);
         // draw the earth

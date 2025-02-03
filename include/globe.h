@@ -32,16 +32,11 @@ void Globe_configure_buffers(Globe mesh, GLuint* VAO, GLuint* VBO, GLuint* EBO) 
     glGenBuffers(1, EBO);
     glBindVertexArray(*VAO);
     glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 5 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 3 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 5, (GLvoid*) 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 5, (GLvoid*) (sizeof(GLfloat) * 3));
-    glEnableVertexAttribArray(1);
-    // TODO: Clean-up
-    // glBindBuffer(GL_ARRAY_BUFFER, 0);
-    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void Globe_draw(Globe mesh, GLuint VAO) {
@@ -57,33 +52,25 @@ typedef struct {
 
 Globe Globe_generate(GlobeProp cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
-    size_t vertex_count = cfg.slices * (cfg.stacks - 1) + 2;
-    GLfloat* vertices = (GLfloat*) malloc(vertex_count * 5 * sizeof(GLfloat));
+    size_t vertex_count = cfg.slices * (cfg.stacks) + 2;
+    GLfloat* vertices = (GLfloat*) malloc(vertex_count * 3 * sizeof(GLfloat));
     if(vertices == NULL) return GLOBE_ERROR;
-    GLfloat* uv = (GLfloat*) malloc(vertex_count * 2 * sizeof(GLfloat));
     size_t k_v = 0;
-    size_t k_t = 0;
     vertices[k_v++] = (GLfloat) 0.f;
     vertices[k_v++] = (GLfloat) cfg.rad;
     vertices[k_v++] = (GLfloat) 0.f;
-    vertices[k_v++] = (GLfloat) 0.5f;
-    vertices[k_v++] = (GLfloat) 0.f;
-    for(size_t i = 0; i < (cfg.stacks - 1); ++i) {
+    for(size_t i = 0; i < (cfg.stacks); ++i) {
         float phi = M_PI * (float) (i + 1) / (float) cfg.stacks;
         for(size_t j = 0; j < cfg.slices; ++j) {
             float theta = M_PI * 2.f * (float) j / (float) cfg.slices;
             vertices[k_v++] = (GLfloat) (sinf(phi) * cosf(theta) * cfg.rad);
             vertices[k_v++] = (GLfloat) (cosf(phi) * cfg.rad);
             vertices[k_v++] = (GLfloat) (sinf(phi) * sinf(theta) * cfg.rad);
-            vertices[k_v++] = 1.f - (GLfloat) j / (GLfloat) cfg.slices;
-            vertices[k_v++] = 1.f - (GLfloat) i / (GLfloat) cfg.stacks;
         }
     }
     vertices[k_v++] = (GLfloat) 0.f;
     vertices[k_v++] = (GLfloat) (cfg.rad * -1.f);
     vertices[k_v++] = (GLfloat) 0.f;
-    vertices[k_v++] = (GLfloat) 0.f;
-    vertices[k_v++] = (GLfloat) 1.f;
     size_t index_count = cfg.slices * 6 * (cfg.stacks - 1);
     GLuint* indices = (GLuint*) malloc(index_count * sizeof(GLuint));
     if(indices == NULL) return GLOBE_ERROR;

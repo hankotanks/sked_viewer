@@ -31,12 +31,9 @@ void Camera_update(Camera* cam, GLuint program) {
     eye[0] = (GLfloat) (cam->rad * cosf(cam->ele) * sinf(cam->azi));
     eye[1] = (GLfloat) (cam->rad * sinf(cam->ele));
     eye[2] = (GLfloat) (cam->rad * cosf(cam->ele) * cosf(cam->azi));
-
     GLfloat up[3];
     up[0] = 0.f; up[1] = 1.f; up[2] = 0.f;
-
     look_at(cam->view, eye, up);
-
     GLint proj_loc = glGetUniformLocation(program, "proj");
     glUniformMatrix4fv(proj_loc, 1, GL_FALSE, cam->proj);
     GLint view_loc = glGetUniformLocation(program, "view");
