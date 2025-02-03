@@ -15,11 +15,11 @@
 #define WINDOW_H 600
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, WINDOW_W, WINDOW_H)
 // EARTH CONFIGURATION OPTIONS
-#define EARTH_RAD 10.f
+#define EARTH_RAD 100.f
 // CAMERA CONFIGURATION OPTIONS
 #define CAMERA_FOV M_PI_2
 #define CAMERA_Z_NEAR 0.1f
-#define CAMERA_Z_FAR 100.f
+#define CAMERA_Z_FAR 1000.f
 
 int main() {
     // set up window
@@ -28,11 +28,12 @@ int main() {
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
     // configure camera and set aspect
-    CameraCfg camera_cfg;
-    CameraCfg_init(&camera_cfg, window, CAMERA_FOV, CAMERA_Z_NEAR, CAMERA_Z_FAR);
+    CameraController controller;
+    CameraController_init(&controller, 0.005);
     Camera camera;
-    Camera_init(&camera, EARTH_RAD * 2.f);
-    Camera_perspective(&camera, camera_cfg);
+    Camera_init(&camera, EARTH_RAD, CAMERA_FOV, CAMERA_Z_NEAR, CAMERA_Z_FAR);
+    Camera_set_aspect(&camera, window->r.w, window->r.h);
+    Camera_perspective(&camera);
     // set up earth texture
     BitmapImage earth_img;
     int failed = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
@@ -62,10 +63,13 @@ int main() {
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
-            // adjust aspect if window size changed
-            CameraCfg_handle_resize(&camera_cfg, window);
-            // handle camera controls
-            Camera_handle_input(&camera, window);
+            if(window->event.type == RGFW_windowResized) {
+                glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
+                // adjust aspect if window size changed
+                Camera_set_aspect(&camera, window->r.w, window->r.h);
+            }
+            // process user input
+            CameraController_handle_input(&controller, &camera, window);
         }
         // update view and proj uniforms
         Camera_update(&camera, earth_shader_program);
