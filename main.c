@@ -1,3 +1,5 @@
+#define LOGGING
+
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -22,6 +24,7 @@
 #define CAMERA_Z_FAR 1000.f
 
 int main() {
+    unsigned int failure;
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     glewInit(); // initialize GLEW
@@ -36,13 +39,16 @@ int main() {
     Camera_perspective(&camera);
     // set up earth texture
     BitmapImage earth_img;
-    int failed = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
-    if(failed) abort();
+    failure = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
+    if(failure) abort();
     glActiveTexture(GL_TEXTURE0);
     GLuint earth_tex_id;
     BitmapImage_build_texture(earth_img, &earth_tex_id);
     // initialize earth mesh
-    Globe earth = Globe_generate((GlobeProp) { .slices = 16, .stacks = 12, .rad = EARTH_RAD });
+    GlobeProp earth_prop = (GlobeProp) { .slices = 16, .stacks = 12, .rad = EARTH_RAD };
+    Globe earth;
+    failure = Globe_generate(&earth, earth_prop);
+    if(failure) abort();
     // configure earth buffers
     GLuint VAO, VBO, EBO;
     Globe_configure_buffers(earth, &VAO, &VBO, &EBO);
@@ -52,8 +58,9 @@ int main() {
     if(earth_vert_shader == NULL) abort();
     const char* earth_frag_shader = read_file_contents("./shaders/globe.fs");
     if(earth_frag_shader == NULL) abort();
-    GLuint earth_shader_program = compile_shader_program(earth_vert_shader, earth_frag_shader);
-    if(!earth_shader_program) abort();
+    GLuint earth_shader_program;
+    failure = compile_shader_program(&earth_shader_program, earth_vert_shader, earth_frag_shader);
+    if(failure) abort();
     free((char*) earth_vert_shader);
     free((char*) earth_frag_shader);
     glUseProgram(earth_shader_program);
@@ -67,6 +74,7 @@ int main() {
                 glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
                 // adjust aspect if window size changed
                 Camera_set_aspect(&camera, window->r.w, window->r.h);
+                Camera_perspective(&camera);
             }
             // process user input
             CameraController_handle_input(&controller, &camera, window);
