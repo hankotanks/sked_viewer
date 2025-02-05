@@ -25,7 +25,7 @@
 #endif
 
 // Adapted from https://stackoverflow.com/a/11793817
-// Credit to user Senna and Paul Rooney
+// Credit to users Senna and Paul Rooney
 const char* read_file_contents(const char* path) {
     FILE* stream;
     char* contents;

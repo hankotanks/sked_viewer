@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "./include/globe.h"
 #include "./include/util.h"
+#include "./include/globe.h"
+#include "./include/stations.h"
 #include "./include/camera.h"
 
 #define RGFW_IMPLEMENTATION
@@ -24,6 +25,7 @@
 #define CAMERA_Z_FAR 1000.f
 
 int main() {
+    Catalog cat = Catalog_parse_from_file("./assets/position.cat");
     unsigned int failure;
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
