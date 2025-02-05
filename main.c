@@ -42,7 +42,7 @@ int main() {
     Camera_perspective(&camera);
     // set up earth texture
     BitmapImage earth_img;
-    failure = BitmapImage_load_from_file(&earth_img, "./assets/globe_big.bmp");
+    failure = BitmapImage_load_from_file(&earth_img, "./assets/globe.bmp");
     if(failure) abort();
     glActiveTexture(GL_TEXTURE0);
     GLuint earth_tex_id;
