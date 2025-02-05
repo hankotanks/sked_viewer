@@ -8,10 +8,29 @@
 
 typedef struct {
     char (*ids)[2];
-    GLfloat* lam;
-    GLfloat* phi;
+    GLfloat* pos;
     size_t station_count;
 } Catalog;
+
+void Catalog_free(Catalog cat) {
+    free(cat.ids);
+    free(cat.pos);
+}
+
+void Catalog_configure_buffers(Catalog cat, GLuint* VAO, GLuint* VBO) {
+    glGenVertexArrays(1, VAO);
+    glGenBuffers(1, VBO);
+    glBindVertexArray(*VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
+    glBufferData(GL_ARRAY_BUFFER, cat.station_count * 3 * sizeof(GLfloat), cat.pos, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
+    glEnableVertexAttribArray(0);
+}
+
+void Catalog_draw(Catalog cat, GLuint VAO) {
+    glBindVertexArray(VAO);    
+    glDrawArrays(GL_POINTS, 0, (GLsizei) cat.station_count);
+}
 
 Catalog Catalog_parse_from_file(const char* raw) {
     Catalog cat;
@@ -35,7 +54,7 @@ Catalog Catalog_parse_from_file(const char* raw) {
     size_t station_count = 0;
     while((flag = getline(&line, &len, stream)) != -1) {
         unsigned int comment = 1;
-        for(size_t i = 0; i < flag; ++i) {
+        for(size_t i = 0; i < (size_t) flag; ++i) {
             switch(line[i]) {
                 case ' ':
                 case '\t': break;
@@ -59,15 +78,12 @@ comment_check_end:
     CLOSE_STREAM_ON_FAILURE(stream, failure, cat, "Failed to seek to beginning of catalog.");
     cat.ids = (char (*)[2]) malloc(station_count * sizeof(*(cat.ids)));
     CLOSE_STREAM_ON_FAILURE(stream, cat.ids == NULL, cat, "Unable to allocate memory for station ids.");
-    cat.lam = (GLfloat*) malloc(station_count * sizeof(GLfloat));
-    if(cat.lam == NULL) free(cat.ids);
-    CLOSE_STREAM_ON_FAILURE(stream, cat.lam == NULL, cat, "Unable to allocate memory for station coords.");
-    cat.phi = (GLfloat*) malloc(station_count * sizeof(GLfloat));
-    if(cat.phi == NULL) {
+    cat.pos = (GLfloat*) malloc(station_count * 3 * sizeof(GLfloat));
+    if(cat.pos == NULL) {
         free(cat.ids);
-        free(cat.lam);
+        cat.ids = NULL;
+        CLOSE_STREAM_ON_FAILURE(stream, 1, cat, "Unable to allocate memory for station coords.");
     }
-    CLOSE_STREAM_ON_FAILURE(stream, cat.phi == NULL, cat, "Unable to allocate memory for station coords.");
     size_t idx = 0;
     while((flag = getline(&line, &len, stream)) != -1) {
         unsigned int comment = 1;
@@ -87,12 +103,18 @@ comment_check_end:
 station_parse_start:
         if(comment && file_size > ftell(stream)) continue;
         char id[3];
-        float lam, phi;
-        int ret = sscanf(line, "%2s %*s %*f %*f %*f %*d %f %f %*s", id, &lam, &phi);
+        float x, y, z;
+        int ret = sscanf(line, "%2s %*s %f %f %f %*d %*f %*f %*s", id, &x, &y, &z);
+        if(ret != 4) {
+            free(cat.ids); cat.ids = NULL;
+            free(cat.pos); cat.pos = NULL;
+            CLOSE_STREAM_ON_FAILURE(stream, 1, cat, "Position catalog has invalid entries.");
+        }
         cat.ids[idx][0] = id[0];
         cat.ids[idx][1] = id[1];
-        cat.lam[idx] = (GLfloat) lam;
-        cat.phi[idx] = (GLfloat) phi;
+        cat.pos[idx * 3 + 0] = (GLfloat) x / 1000.f * -1.f;
+        cat.pos[idx * 3 + 1] = (GLfloat) z / 1000.f;
+        cat.pos[idx * 3 + 2] = (GLfloat) y / 1000.f;
         idx++;
         if(file_size - ftell(stream) == 0) {
             flag = 0;
