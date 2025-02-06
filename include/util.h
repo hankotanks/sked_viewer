@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+
 #ifdef LOGGING
 #define LOG_ERROR(msg) fprintf(stderr, "ERROR: %s\n", msg);
 #define LOG_INFO(msg) printf("INFO: %s\n", msg);
@@ -52,7 +55,7 @@ const char* read_file_contents(const char* path) {
     return contents;
 }
 
-unsigned int compile_shader(GLuint* shader, GLenum type, const char* source) {
+unsigned int compile_shader_from_source(GLuint* shader, GLenum type, const char* source) {
     *shader = glCreateShader(type);
     glShaderSource(*shader, 1, &source, NULL);
     glCompileShader(*shader);
@@ -67,6 +70,57 @@ unsigned int compile_shader(GLuint* shader, GLenum type, const char* source) {
     return 0;
 }
 
+unsigned int compile_shader(GLuint* shader, GLenum type, const char* path) {
+    const char* source = read_file_contents(path);
+    if(source == NULL || source[0] == '\0') {
+        LOG_ERROR("Failed to read shader source.");
+        return 1;
+    }
+    *shader = glCreateShader(type);
+    glShaderSource(*shader, 1, &source, NULL);
+    glCompileShader(*shader);
+    GLint success;
+    glGetShaderiv(*shader, GL_COMPILE_STATUS, &success);
+    free((char*) source);
+    if(!success) {
+        if(type == GL_VERTEX_SHADER) LOG_ERROR("Failed to compile vertex shader.");
+        if(type == GL_FRAGMENT_SHADER) LOG_ERROR("Failed to compile fragment shader.");
+        glDeleteShader(*shader);
+        return 1;
+    }
+    return 0;
+}
+
+unsigned int assemble_shader_program(GLuint* program, GLuint vert, GLuint frag) {
+    *program = glCreateProgram();
+    if(!(*program)) {
+        LOG_ERROR("Failed to create program.");
+        return 1;
+    }
+    unsigned int skipped = 0;
+    if(vert == (GLuint) 0) {
+        LOG_INFO("Skipping vertex shader.");
+        skipped = 1;
+    } else glAttachShader(*program, vert);
+    if(frag == (GLuint) 0) {
+        if(skipped) {
+            LOG_ERROR("Fragment shader cannot be empty after skipping vertex shader compilation.");
+            glDeleteProgram(*program);
+            return 1;
+        } else LOG_INFO("Skipping fragment shader.");
+    } else glAttachShader(*program, frag);
+    glLinkProgram(*program);
+    GLint success;
+    glGetProgramiv(*program, GL_LINK_STATUS, &success);
+    if(!success) {
+        LOG_ERROR("Shader program could not be linked.");
+        glDeleteProgram(*program);
+        return 1;
+    }
+    return 0;
+}
+
+/*
 unsigned int compile_shader_program(GLuint* program, const char* vert, const char* frag) {
     *program = glCreateProgram();
     if(!(*program)) {
@@ -77,7 +131,7 @@ unsigned int compile_shader_program(GLuint* program, const char* vert, const cha
     unsigned int failure = 0;
     GLuint vert_shader, frag_shader;
     if(vert[0] != '\0') {
-        failure = compile_shader(&vert_shader, GL_VERTEX_SHADER, vert);
+        failure = compile_shader_from_source(&vert_shader, GL_VERTEX_SHADER, vert);
         if(failure) {
             LOG_ERROR("Failed to compile vertex shader.");
             return 1;
@@ -93,7 +147,7 @@ unsigned int compile_shader_program(GLuint* program, const char* vert, const cha
             return 1;
         } else LOG_INFO("Skipping fragment shader.");
     } else {
-        failure = compile_shader(&frag_shader, GL_FRAGMENT_SHADER, frag);
+        failure = compile_shader_from_source(&frag_shader, GL_FRAGMENT_SHADER, frag);
         if(failure) {
             LOG_ERROR("Fragment shader failed to compile.");
             glDeleteShader(vert_shader);
@@ -104,14 +158,12 @@ unsigned int compile_shader_program(GLuint* program, const char* vert, const cha
     glLinkProgram(*program);
     GLint success;
     glGetProgramiv(*program, GL_LINK_STATUS, &success);
-    glDeleteShader(vert_shader);
-    glDeleteShader(frag_shader);
     if(!success) {
         LOG_ERROR("Shader program could not be linked.");
         return 1;
     }
     return 0;
-}
+} */
 
 typedef struct {
     unsigned char header[54];
@@ -121,17 +173,19 @@ typedef struct {
     unsigned char* data;
 } BitmapImage;
 
-void BitmapImage_build_texture(BitmapImage img, GLuint* id) {
-    glGenTextures(1, id);
-    glBindTexture(GL_TEXTURE_2D, *id);
+void BitmapImage_free(BitmapImage img) {
+    free(img.data);
+}
+
+void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum tex_unit) {
+    glActiveTexture(tex_unit);
+    glGenTextures(1, tex_id);
+    glBindTexture(GL_TEXTURE_2D, *tex_id);
     GLsizei w = (GLsizei) img.w;
     GLsizei h = (GLsizei) img.h;
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_BGR, GL_UNSIGNED_BYTE, img.data);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_REPEAT);
 }
 
 // Sourced BMP parser from https://www.opengl-tutorial.org/beginners-tutorials/tutorial-5-a-textured-cube/

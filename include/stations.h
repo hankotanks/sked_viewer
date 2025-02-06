@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "util.h"
+#include "camera.h"
 
 typedef struct {
     char (*ids)[2];
@@ -32,10 +33,13 @@ void Catalog_configure_buffers(Catalog cat, float rad, GLuint program, GLuint* V
 }
 
 void Catalog_draw(Catalog cat, GLuint program, GLuint VAO) {
+    glEnable(GL_DEPTH_TEST);
+    glPointSize(5.f);
     glUseProgram(program);
     glBindVertexArray(VAO);    
     glDrawArrays(GL_POINTS, 0, (GLsizei) cat.station_count);
     glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
 }
 
 Catalog Catalog_parse_from_file(const char* raw) {
@@ -129,6 +133,58 @@ station_parse_start:
     CLOSE_STREAM_ON_FAILURE(stream, flag == -1, cat, "Failed to parse stations.");
     cat.station_count = station_count;
     return cat;
+}
+
+typedef struct {
+    Catalog stations;
+    GLuint VAO, VBO, shader_program;
+} StationPass;
+
+void StationPass_free(StationPass pass) {
+    Catalog_free(pass.stations);
+    glDeleteVertexArrays(1, &(pass.VAO));
+    glDeleteBuffers(1, &(pass.VBO));
+    glDeleteProgram(pass.shader_program);
+}
+
+void StationPass_update_and_draw(StationPass pass, Camera cam) {
+    Camera_update_uniforms(cam, pass.shader_program);
+    Catalog_draw(pass.stations, pass.shader_program, pass.VAO);
+}
+
+typedef struct {
+    float globe_radius;
+    GLuint shader_lat_lon;
+    const char* path_frag_shader;
+    const char* path_pos_catalog;
+} StationPassDesc;
+
+// StationPass does not 'own' its shaders in the same way that GlobePass does.
+// It is not its responsibility to free them (yet).
+unsigned int StationPass_init(StationPass* pass, StationPassDesc desc) {
+    unsigned int failure;
+    pass->stations = Catalog_parse_from_file(desc.path_pos_catalog);
+    if(pass->stations.station_count == 0) return 1;
+    // configure station shaders
+    GLuint frag;
+    failure = compile_shader(&frag, GL_FRAGMENT_SHADER, desc.path_frag_shader);
+    if(failure) {
+        Catalog_free(pass->stations);
+        return 1;
+    }
+    GLuint shader_program;
+    failure = assemble_shader_program(&shader_program, desc.shader_lat_lon, frag);
+    if(failure) {
+        Catalog_free(pass->stations);
+        glDeleteShader(frag);
+        return 1;
+    }
+    GLuint VAO, VBO;
+    Catalog_configure_buffers(pass->stations, desc.globe_radius, shader_program, &VAO, &VBO);
+    pass->VAO = VAO;
+    pass->VBO = VBO;
+    pass->shader_program = shader_program;
+    return 0;
 }
 
 #endif /* STATIONS_H */

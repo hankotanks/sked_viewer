@@ -6,6 +6,7 @@
 
 #include "RGFW.h"
 
+#include "util.h"
 #include "lalg.h"
 
 #define CAMERA_RAD_SCALAR 4.f
@@ -15,31 +16,29 @@ typedef struct {
     float azi;
     float ele;
     float rad;
-    float rad_default;
-    float fov;
     float aspect;
-    float z_near;
-    float z_far;
     GLfloat proj[16];
     GLfloat view[16];
 } Camera;
 
-void Camera_init(Camera* cam, float rad, float fov, float z_near, float z_far) {
+typedef struct {
+    float fov;
+    float z_near;
+    float z_far;
+} CameraConfig;
+
+void Camera_init(Camera* cam, float globe_radius) {
     cam->azi = 0.f;
     cam->ele = 0.f;
-    cam->rad = rad * CAMERA_RAD_SCALAR;
-    cam->rad_default = cam->rad;
-    cam->fov = fov;
+    cam->rad = globe_radius * CAMERA_RAD_SCALAR;
     cam->aspect = 1.f;
-    cam->z_near = z_near;
-    cam->z_far = z_far;
     for(size_t i = 0; i < 16; ++i) {
         cam->proj[i] = (GLfloat) 0.f;
         cam->view[i] = (GLfloat) 0.f;
     }
 }
 
-void Camera_update(Camera* cam, GLuint program) {
+void Camera_update(Camera* cam) {
     GLfloat eye[3];
     eye[0] = (GLfloat) (cam->rad * cosf(cam->ele) * sinf(cam->azi));
     eye[1] = (GLfloat) (cam->rad * sinf(cam->ele));
@@ -47,11 +46,14 @@ void Camera_update(Camera* cam, GLuint program) {
     GLfloat up[3];
     up[0] = 0.f; up[1] = 1.f; up[2] = 0.f;
     look_at(cam->view, eye, up);
+}
+
+void Camera_update_uniforms(Camera cam, GLuint program) {
     glUseProgram(program);
     GLint proj_loc = glGetUniformLocation(program, "proj");
-    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, cam->proj);
+    glUniformMatrix4fv(proj_loc, 1, GL_FALSE, cam.proj);
     GLint view_loc = glGetUniformLocation(program, "view");
-    glUniformMatrix4fv(view_loc, 1, GL_FALSE, cam->view);
+    glUniformMatrix4fv(view_loc, 1, GL_FALSE, cam.view);
     glUseProgram(0);
 }
 
@@ -59,14 +61,14 @@ void Camera_set_aspect(Camera* cam, int32_t w, int32_t h) {
     cam->aspect = (float) w / (float) h;
 }
 
-void Camera_perspective(Camera* cam) {
-    GLfloat temp = tanf(cam->fov / 2.f);
+void Camera_perspective(Camera* cam, CameraConfig cfg) {
+    GLfloat temp = tanf(cfg.fov / 2.f);
     for(size_t i = 0; i < 16; ++i) cam->proj[i] = (GLfloat) 0.f;
     cam->proj[ 0] = (GLfloat) (1.f / (cam->aspect * temp)); 
     cam->proj[ 5] = (GLfloat) (1.f / temp);
-    cam->proj[10] = (GLfloat) ((cam->z_far + cam->z_near) / (cam->z_far - cam->z_near) * -1.f); 
+    cam->proj[10] = (GLfloat) ((cfg.z_far + cfg.z_near) / (cfg.z_far - cfg.z_near) * -1.f); 
     cam->proj[11] = (GLfloat) (-1.f);
-    cam->proj[14] = (GLfloat) ((2.f * cam->z_far * cam->z_near) / (cam->z_far - cam->z_near) * -1.f); 
+    cam->proj[14] = (GLfloat) ((2.f * cfg.z_far * cfg.z_near) / (cfg.z_far - cfg.z_near) * -1.f); 
 }
 
 typedef struct {
@@ -81,22 +83,20 @@ void CameraController_init(CameraController* cont, float sensitivity) {
     cont->sensitivity = sensitivity;
 }
 
-void CameraController_handle_input(CameraController* cont, Camera* cam, RGFW_window* win) {
+void CameraController_handle_input(CameraController* cont, Camera* cam, float globe_radius, RGFW_window* win) {
     switch(win->event.type) {
         case RGFW_mouseButtonPressed:
             /* if(RGFW_isMousePressed(win, RGFW_mouseLeft)) */ 
             cont->dragging = 1;
-            float rad_vel = cam->rad_default / CAMERA_RAD_SCALAR * sqrtf(cont->sensitivity) * 2.f;
-            float rad_min = cam->rad_default / (CAMERA_RAD_SCALAR * 0.75f);
-            float rad_max = cam->rad_default * (CAMERA_RAD_SCALAR * 0.5f);
+            float rad_vel = globe_radius * sqrtf(cont->sensitivity) * 2.f;
+            float rad_min = globe_radius + rad_vel;
+            float rad_max = globe_radius * (CAMERA_RAD_SCALAR + 1.f);
             switch(win->event.button) {
                 case RGFW_mouseScrollUp:
-                    cam->rad -= rad_vel;
-                    if(cam->rad < rad_min) cam->rad = rad_min;
+                    cam->rad = MAX(rad_min, cam->rad - rad_vel);
                     break;
                 case RGFW_mouseScrollDown:
-                    cam->rad += rad_vel;
-                    if(cam->rad > rad_max) cam->rad = rad_max;
+                    cam->rad = MIN(rad_max, cam->rad + rad_vel);
                     break;
                 default: break;
             }

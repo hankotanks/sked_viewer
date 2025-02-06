@@ -8,6 +8,7 @@
 #include <assert.h>
 
 #include "util.h"
+#include "camera.h"
 
 typedef struct {
     GLfloat* vertices;
@@ -29,19 +30,22 @@ void Globe_free(Globe mesh) {
 }
 
 void Globe_draw(Globe mesh, GLuint program, GLuint VAO) {
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
     glUseProgram(program);
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES, mesh.index_count * sizeof(GLuint), GL_UNSIGNED_INT, (GLvoid*) 0);
     glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
 }
 
 typedef struct {
     size_t slices;
     size_t stacks;
     float rad;
-} GlobeProp;
+} GlobeConfig;
 
-void Globe_configure_buffers(Globe mesh, GlobeProp cfg, GLuint program, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
+void Globe_configure_buffers(Globe mesh, GlobeConfig cfg, GLuint program, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
     glGenVertexArrays(1, VAO);
     glGenBuffers(1, VBO);
     glGenBuffers(1, EBO);
@@ -59,7 +63,7 @@ void Globe_configure_buffers(Globe mesh, GlobeProp cfg, GLuint program, GLuint* 
     glUseProgram(0);
 }
 
-int Globe_generate(Globe* mesh, GlobeProp cfg) {
+unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
     mesh->vertex_count = cfg.slices * (cfg.stacks - 1) + 2;
     mesh->vertices = (GLfloat*) malloc(mesh->vertex_count * 2 * sizeof(GLfloat));
@@ -114,6 +118,79 @@ int Globe_generate(Globe* mesh, GlobeProp cfg) {
             mesh->indices[k_i++] = i3;
         }
     }
+    return 0;
+}
+
+typedef struct {
+    Globe mesh;
+    GLuint shader_vert, shader_frag;
+    GLuint shader_program;
+    GLuint VAO, VBO, EBO;
+} GlobePass;
+
+void GlobePass_free(GlobePass pass) {
+    Globe_free(pass.mesh);
+    glDeleteShader(pass.shader_vert);
+    glDeleteShader(pass.shader_frag);
+    glDeleteProgram(pass.shader_program);
+    glDeleteVertexArrays(1, &(pass.VAO));
+    glDeleteBuffers(1, &(pass.VBO));
+    glDeleteBuffers(1, &(pass.EBO));
+}
+
+void GlobePass_update_and_draw(GlobePass pass, Camera cam) {
+    Camera_update_uniforms(cam, pass.shader_program);
+    Globe_draw(pass.mesh, pass.shader_program, pass.VAO);
+}
+
+typedef struct {
+    const char* path_vert_shader;
+    const char* path_frag_shader;
+    const char* path_globe_texture;
+} GlobePassPaths;
+
+unsigned int GlobePass_init(GlobePass* pass, GlobePassPaths paths, GlobeConfig cfg) {
+    unsigned int failure;
+    BitmapImage globe_texture;
+    failure = BitmapImage_load_from_file(&globe_texture, paths.path_globe_texture);
+    if(failure) return 1;
+    GLuint globe_texture_id;
+    BitmapImage_build_texture(globe_texture, &globe_texture_id, GL_TEXTURE0);
+    // initialize earth mesh
+    failure = Globe_generate(&(pass->mesh), cfg);
+    if(failure) {
+        BitmapImage_free(globe_texture);
+        return 1;
+    }
+    // configure earth shaders
+    GLuint vert, frag;
+    failure = compile_shader(&vert, GL_VERTEX_SHADER, paths.path_vert_shader);
+    if(failure) {
+        BitmapImage_free(globe_texture);
+        return 1;
+    }
+    failure = compile_shader(&frag, GL_FRAGMENT_SHADER, paths.path_frag_shader);
+    if(failure) {
+        BitmapImage_free(globe_texture);
+        glDeleteShader(vert);
+    }
+    GLuint shader_program;
+    failure = assemble_shader_program(&shader_program, vert, frag);
+    if(failure) {
+        BitmapImage_free(globe_texture);
+        glDeleteShader(vert);
+        glDeleteShader(frag);
+        return 1;
+    };
+    pass->shader_vert = vert;
+    pass->shader_frag = frag;
+    GLuint VAO, VBO, EBO;
+    Globe_configure_buffers(pass->mesh, cfg, shader_program, &VAO, &VBO, &EBO);
+    BitmapImage_free(globe_texture);
+    pass->VAO = VAO;
+    pass->VBO = VBO;
+    pass->EBO = EBO;
+    pass->shader_program = shader_program;
     return 0;
 }
 
