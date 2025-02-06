@@ -18,11 +18,11 @@
 #define WINDOW_H 600
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, WINDOW_W, WINDOW_H)
 // EARTH CONFIGURATION OPTIONS
-#define EARTH_RAD 6356.7523f // a = 6378.137f
+#define EARTH_RAD 100.f // a = 6378.137f
 // CAMERA CONFIGURATION OPTIONS
 #define CAMERA_FOV M_PI_2
 #define CAMERA_Z_NEAR 0.1f
-#define CAMERA_Z_FAR 100000.f
+#define CAMERA_Z_FAR 1000.f
 
 int main() {
     unsigned int failure;
@@ -52,10 +52,6 @@ int main() {
     Globe earth;
     failure = Globe_generate(&earth, earth_prop);
     if(failure) abort();
-    // configure earth buffers
-    GLuint VAO_earth, VBO_earth, EBO_earth;
-    Globe_configure_buffers(earth, &VAO_earth, &VBO_earth, &EBO_earth);
-    Globe_free(earth);
     // configure globe shaders
     const char* dummy_vert_shader = read_file_contents("./shaders/dummy.vs");
     if(dummy_vert_shader == NULL) abort();
@@ -65,24 +61,25 @@ int main() {
     failure = compile_shader_program(&earth_shader_program, dummy_vert_shader, earth_frag_shader);
     if(failure) abort();
     free((char*) earth_frag_shader);
-    // pass the sampler for the earth texture
-    GLuint earth_sampler_loc = glGetUniformLocation(earth_shader_program, "globe_sampler");
-    glUniform1i(earth_sampler_loc, 0);
+    // configure earth buffers
+    GLuint VAO_earth, VBO_earth, EBO_earth;
+    Globe_configure_buffers(earth, earth_prop, earth_shader_program, &VAO_earth, &VBO_earth, &EBO_earth);
+    Globe_free(earth);
     // configure stations
     Catalog cat = Catalog_parse_from_file("./assets/position.cat");
     if(cat.station_count == 0) abort();
-    // Catalog_normalize(cat);
-    GLuint VAO_stats, VBO_stats;
-    Catalog_configure_buffers(cat, &VAO_stats, &VBO_stats);
-    Catalog_free(cat);
     // configure station shaders
-    const char* stats_frag_shader = read_file_contents("./shaders/stations.fs");
-    if(stats_frag_shader == NULL) abort();
-    GLuint stats_shader_program;
-    failure = compile_shader_program(&stats_shader_program, dummy_vert_shader, stats_frag_shader);
+    const char* station_frag_shader = read_file_contents("./shaders/stations.fs");
+    if(station_frag_shader == NULL) abort();
+    GLuint station_shader_program;
+    failure = compile_shader_program(&station_shader_program, dummy_vert_shader, station_frag_shader);
     if(failure) abort();
     free((char*) dummy_vert_shader);
-    free((char*) stats_frag_shader);
+    free((char*) station_frag_shader);
+    // configure station position buffers
+    GLuint VAO_station, VBO_station;
+    Catalog_configure_buffers(cat, earth_prop.rad, station_shader_program, &VAO_station, &VBO_station);
+    Catalog_free(cat);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -98,13 +95,11 @@ int main() {
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // update earth and draw
-        glUseProgram(earth_shader_program);
         Camera_update(&camera, earth_shader_program);
-        Globe_draw(earth, VAO_earth);
+        Globe_draw(earth, earth_shader_program, VAO_earth);
         // update stations and draw
-        glUseProgram(stats_shader_program);
-        Camera_update(&camera, stats_shader_program);
-        Catalog_draw(cat, VAO_stats);
+        Camera_update(&camera, station_shader_program);
+        Catalog_draw(cat, station_shader_program, VAO_station);
         // conclude path
         RGFW_window_swapBuffers(window);
     }
@@ -112,8 +107,8 @@ int main() {
     glDeleteVertexArrays(1, &VAO_earth);
     glDeleteBuffers(1, &VBO_earth);
     glDeleteBuffers(1, &EBO_earth);
-    glDeleteVertexArrays(1, &VAO_stats);
-    glDeleteBuffers(1, &VBO_stats);
+    glDeleteVertexArrays(1, &VAO_station);
+    glDeleteBuffers(1, &VBO_station);
     // close window
     RGFW_window_close(window);
     return 0;

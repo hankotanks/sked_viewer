@@ -47,10 +47,12 @@ void Camera_update(Camera* cam, GLuint program) {
     GLfloat up[3];
     up[0] = 0.f; up[1] = 1.f; up[2] = 0.f;
     look_at(cam->view, eye, up);
+    glUseProgram(program);
     GLint proj_loc = glGetUniformLocation(program, "proj");
     glUniformMatrix4fv(proj_loc, 1, GL_FALSE, cam->proj);
     GLint view_loc = glGetUniformLocation(program, "view");
     glUniformMatrix4fv(view_loc, 1, GL_FALSE, cam->view);
+    glUseProgram(0);
 }
 
 void Camera_set_aspect(Camera* cam, int32_t w, int32_t h) {
@@ -84,9 +86,9 @@ void CameraController_handle_input(CameraController* cont, Camera* cam, RGFW_win
         case RGFW_mouseButtonPressed:
             /* if(RGFW_isMousePressed(win, RGFW_mouseLeft)) */ 
             cont->dragging = 1;
-            float rad_vel = cam->rad_default / CAMERA_RAD_SCALAR * sqrtf(cont->sensitivity);
-            float rad_min = cam->rad_default / (CAMERA_RAD_SCALAR * 0.75);
-            float rad_max = cam->rad_default * (CAMERA_RAD_SCALAR * 0.75);
+            float rad_vel = cam->rad_default / CAMERA_RAD_SCALAR * sqrtf(cont->sensitivity) * 2.f;
+            float rad_min = cam->rad_default / (CAMERA_RAD_SCALAR * 0.75f);
+            float rad_max = cam->rad_default * (CAMERA_RAD_SCALAR * 0.5f);
             switch(win->event.button) {
                 case RGFW_mouseScrollUp:
                     cam->rad -= rad_vel;

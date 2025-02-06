@@ -1,6 +1,7 @@
 #ifndef STATIONS_H
 #define STATIONS_H
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -17,19 +18,24 @@ void Catalog_free(Catalog cat) {
     free(cat.pos);
 }
 
-void Catalog_configure_buffers(Catalog cat, GLuint* VAO, GLuint* VBO) {
+void Catalog_configure_buffers(Catalog cat, float rad, GLuint program, GLuint* VAO, GLuint* VBO) {
     glGenVertexArrays(1, VAO);
     glGenBuffers(1, VBO);
     glBindVertexArray(*VAO);
     glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, cat.station_count * 3 * sizeof(GLfloat), cat.pos, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
+    glBufferData(GL_ARRAY_BUFFER, cat.station_count * 2 * sizeof(GLfloat), cat.pos, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
+    glUseProgram(program);
+    glUniform1f(glGetUniformLocation(program, "globe_radius"), rad);
+    glUseProgram(0);
 }
 
-void Catalog_draw(Catalog cat, GLuint VAO) {
+void Catalog_draw(Catalog cat, GLuint program, GLuint VAO) {
+    glUseProgram(program);
     glBindVertexArray(VAO);    
     glDrawArrays(GL_POINTS, 0, (GLsizei) cat.station_count);
+    glUseProgram(0);
 }
 
 Catalog Catalog_parse_from_file(const char* raw) {
@@ -78,7 +84,7 @@ comment_check_end:
     CLOSE_STREAM_ON_FAILURE(stream, failure, cat, "Failed to seek to beginning of catalog.");
     cat.ids = (char (*)[2]) malloc(station_count * sizeof(*(cat.ids)));
     CLOSE_STREAM_ON_FAILURE(stream, cat.ids == NULL, cat, "Unable to allocate memory for station ids.");
-    cat.pos = (GLfloat*) malloc(station_count * 3 * sizeof(GLfloat));
+    cat.pos = (GLfloat*) malloc(station_count * 2 * sizeof(GLfloat));
     if(cat.pos == NULL) {
         free(cat.ids);
         cat.ids = NULL;
@@ -103,18 +109,17 @@ comment_check_end:
 station_parse_start:
         if(comment && file_size > ftell(stream)) continue;
         char id[3];
-        float x, y, z;
-        int ret = sscanf(line, "%2s %*s %f %f %f %*d %*f %*f %*s", id, &x, &y, &z);
-        if(ret != 4) {
+        float lam, phi;
+        int ret = sscanf(line, "%2s %*s %*f %*f %*f %*d %f %f %*s", id, &lam, &phi);
+        if(ret != 3) {
             free(cat.ids); cat.ids = NULL;
             free(cat.pos); cat.pos = NULL;
             CLOSE_STREAM_ON_FAILURE(stream, 1, cat, "Position catalog has invalid entries.");
         }
         cat.ids[idx][0] = id[0];
         cat.ids[idx][1] = id[1];
-        cat.pos[idx * 3 + 0] = (GLfloat) x / 1000.f * -1.f;
-        cat.pos[idx * 3 + 1] = (GLfloat) z / 1000.f;
-        cat.pos[idx * 3 + 2] = (GLfloat) y / 1000.f;
+        cat.pos[idx * 2 + 0] = (GLfloat) (lam - 5.f) * M_PI / 180.f; // TODO: Not sure why this 5 degree offset is required
+        cat.pos[idx * 2 + 1] = (GLfloat) (180.f - (phi + 90.f)) * M_PI / 180.f;
         idx++;
         if(file_size - ftell(stream) == 0) {
             flag = 0;

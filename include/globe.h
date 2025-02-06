@@ -28,22 +28,11 @@ void Globe_free(Globe mesh) {
     free(mesh.indices);
 }
 
-void Globe_configure_buffers(Globe mesh, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glGenBuffers(1, EBO);
-    glBindVertexArray(*VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 3 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
-    glEnableVertexAttribArray(0);
-}
-
-void Globe_draw(Globe mesh, GLuint VAO) {
+void Globe_draw(Globe mesh, GLuint program, GLuint VAO) {
+    glUseProgram(program);
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES, mesh.index_count * sizeof(GLuint), GL_UNSIGNED_INT, (GLvoid*) 0);
+    glUseProgram(0);
 }
 
 typedef struct {
@@ -52,30 +41,44 @@ typedef struct {
     float rad;
 } GlobeProp;
 
+void Globe_configure_buffers(Globe mesh, GlobeProp cfg, GLuint program, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
+    glGenVertexArrays(1, VAO);
+    glGenBuffers(1, VBO);
+    glGenBuffers(1, EBO);
+    glBindVertexArray(*VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
+    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 2 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
+    glEnableVertexAttribArray(0);
+    glUseProgram(program);
+    glUniform1f(glGetUniformLocation(program, "globe_radius"), cfg.rad);
+    // pass the sampler for the earth texture
+    glUniform1i(glGetUniformLocation(program, "globe_sampler"), 0);
+    glUseProgram(0);
+}
+
 int Globe_generate(Globe* mesh, GlobeProp cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
-    mesh->vertex_count = cfg.slices * (cfg.stacks) + 2;
-    mesh->vertices = (GLfloat*) malloc(mesh->vertex_count * 3 * sizeof(GLfloat));
+    mesh->vertex_count = cfg.slices * (cfg.stacks - 1) + 2;
+    mesh->vertices = (GLfloat*) malloc(mesh->vertex_count * 2 * sizeof(GLfloat));
     if(mesh->vertices == NULL) {
         LOG_ERROR("Unable to allocate globe vertex buffer.");
         return 1;
     }
     size_t k_v = 0;
+    mesh->vertices[k_v++] = (GLfloat) M_PI;
     mesh->vertices[k_v++] = (GLfloat) 0.f;
-    mesh->vertices[k_v++] = (GLfloat) cfg.rad;
-    mesh->vertices[k_v++] = (GLfloat) 0.f;
-    for(size_t i = 0; i < (cfg.stacks); ++i) {
+    for(size_t i = 0; i < (cfg.stacks - 1); ++i) {
         float phi = M_PI * (float) (i + 1) / (float) cfg.stacks;
         for(size_t j = 0; j < cfg.slices; ++j) {
-            float theta = M_PI * 2.f * (float) j / (float) cfg.slices;
-            mesh->vertices[k_v++] = (GLfloat) (sinf(phi) * cosf(theta) * cfg.rad);
-            mesh->vertices[k_v++] = (GLfloat) (cosf(phi) * cfg.rad);
-            mesh->vertices[k_v++] = (GLfloat) (sinf(phi) * sinf(theta) * cfg.rad);
+            mesh->vertices[k_v++] = M_PI * 2.0 * (float) j / (float) cfg.slices;
+            mesh->vertices[k_v++] = phi;
         }
     }
-    mesh->vertices[k_v++] = (GLfloat) 0.f;
-    mesh->vertices[k_v++] = (GLfloat) (cfg.rad * -1.f);
-    mesh->vertices[k_v++] = (GLfloat) 0.f;
+    mesh->vertices[k_v++] = (GLfloat) M_PI;
+    mesh->vertices[k_v++] = (GLfloat) M_PI;
     mesh->index_count = cfg.slices * 6 * (cfg.stacks - 1);
     mesh->indices = (GLuint*) malloc(mesh->index_count * sizeof(GLuint));
     if(mesh->indices == NULL) {

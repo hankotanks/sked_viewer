@@ -1,12 +1,10 @@
 #version 330 core
-in vec3 f_pos;
+in vec3 f_lam_phi;
 out vec4 color;
 uniform sampler2D globe_sampler;
 void main() {
-    vec3 f_pos_normal = normalize(f_pos);
-    float lam = atan(f_pos_normal.x, f_pos_normal.z);
-    float phi = acos(f_pos_normal.y);
-    float u = (lam + radians(180.f)) / radians(360.f);
-    float v = 1.f - phi / radians(180.f);
+    float lam = atan(f_lam_phi.x, f_lam_phi.y);
+    float u = 0.5 - lam / radians(360.0);
+    float v = 1.0 - f_lam_phi.z / radians(180.0);
     color = texture(globe_sampler, vec2(u, v));
 }
