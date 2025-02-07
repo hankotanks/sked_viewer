@@ -19,29 +19,6 @@ void Catalog_free(Catalog cat) {
     free(cat.pos);
 }
 
-void Catalog_configure_buffers(Catalog cat, float rad, GLuint program, GLuint* VAO, GLuint* VBO) {
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glBindVertexArray(*VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, cat.station_count * 2 * sizeof(GLfloat), cat.pos, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
-    glEnableVertexAttribArray(0);
-    glUseProgram(program);
-    glUniform1f(glGetUniformLocation(program, "globe_radius"), rad);
-    glUseProgram(0);
-}
-
-void Catalog_draw(Catalog cat, GLuint program, GLuint VAO) {
-    glEnable(GL_DEPTH_TEST);
-    glPointSize(5.f);
-    glUseProgram(program);
-    glBindVertexArray(VAO);    
-    glDrawArrays(GL_POINTS, 0, (GLsizei) cat.station_count);
-    glUseProgram(0);
-    glDisable(GL_DEPTH_TEST);
-}
-
 Catalog Catalog_parse_from_file(const char* raw) {
     Catalog cat;
     cat.station_count = 0;
@@ -149,7 +126,13 @@ void StationPass_free(StationPass pass) {
 
 void StationPass_update_and_draw(StationPass pass, Camera cam) {
     Camera_update_uniforms(cam, pass.shader_program);
-    Catalog_draw(pass.stations, pass.shader_program, pass.VAO);
+    glEnable(GL_DEPTH_TEST);
+    glPointSize(5.f);
+    glUseProgram(pass.shader_program);
+    glBindVertexArray(pass.VAO);    
+    glDrawArrays(GL_POINTS, 0, (GLsizei) pass.stations.station_count);
+    glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
 }
 
 typedef struct {
@@ -163,27 +146,38 @@ typedef struct {
 // It is not its responsibility to free them (yet).
 unsigned int StationPass_init(StationPass* pass, StationPassDesc desc) {
     unsigned int failure;
-    pass->stations = Catalog_parse_from_file(desc.path_pos_catalog);
-    if(pass->stations.station_count == 0) return 1;
+    Catalog cat;
+    cat = Catalog_parse_from_file(desc.path_pos_catalog);
+    if(cat.station_count == 0) return 1;
     // configure station shaders
     GLuint frag;
     failure = compile_shader(&frag, GL_FRAGMENT_SHADER, desc.path_frag_shader);
     if(failure) {
-        Catalog_free(pass->stations);
+        Catalog_free(cat);
         return 1;
     }
     GLuint shader_program;
     failure = assemble_shader_program(&shader_program, desc.shader_lat_lon, frag);
     if(failure) {
-        Catalog_free(pass->stations);
+        Catalog_free(cat);
         glDeleteShader(frag);
         return 1;
     }
     GLuint VAO, VBO;
-    Catalog_configure_buffers(pass->stations, desc.globe_radius, shader_program, &VAO, &VBO);
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, cat.station_count * 2 * sizeof(GLfloat), cat.pos, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
+    glEnableVertexAttribArray(0);
+    glUseProgram(shader_program);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), desc.globe_radius);
+    glUseProgram(0);
     pass->VAO = VAO;
     pass->VBO = VBO;
     pass->shader_program = shader_program;
+    pass->stations = cat;
     return 0;
 }
 

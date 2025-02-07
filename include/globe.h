@@ -29,39 +29,11 @@ void Globe_free(Globe mesh) {
     free(mesh.indices);
 }
 
-void Globe_draw(Globe mesh, GLuint program, GLuint VAO) {
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glUseProgram(program);
-    glBindVertexArray(VAO);
-    glDrawElements(GL_TRIANGLES, mesh.index_count * sizeof(GLuint), GL_UNSIGNED_INT, (GLvoid*) 0);
-    glUseProgram(0);
-    glDisable(GL_DEPTH_TEST);
-}
-
 typedef struct {
     size_t slices;
     size_t stacks;
     float rad;
 } GlobeConfig;
-
-void Globe_configure_buffers(Globe mesh, GlobeConfig cfg, GLuint program, GLuint* VAO, GLuint* VBO, GLuint* EBO) {
-    glGenVertexArrays(1, VAO);
-    glGenBuffers(1, VBO);
-    glGenBuffers(1, EBO);
-    glBindVertexArray(*VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, *VBO);
-    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 2 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, *EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
-    glEnableVertexAttribArray(0);
-    glUseProgram(program);
-    glUniform1f(glGetUniformLocation(program, "globe_radius"), cfg.rad);
-    // pass the sampler for the earth texture
-    glUniform1i(glGetUniformLocation(program, "globe_sampler"), 0);
-    glUseProgram(0);
-}
 
 unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
@@ -140,7 +112,13 @@ void GlobePass_free(GlobePass pass) {
 
 void GlobePass_update_and_draw(GlobePass pass, Camera cam) {
     Camera_update_uniforms(cam, pass.shader_program);
-    Globe_draw(pass.mesh, pass.shader_program, pass.VAO);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glUseProgram(pass.shader_program);
+    glBindVertexArray(pass.VAO);
+    glDrawElements(GL_TRIANGLES, pass.mesh.index_count * sizeof(GLuint), GL_UNSIGNED_INT, (GLvoid*) 0);
+    glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
 }
 
 typedef struct {
@@ -157,7 +135,8 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassPaths paths, GlobeConfig c
     GLuint globe_texture_id;
     BitmapImage_build_texture(globe_texture, &globe_texture_id, GL_TEXTURE0);
     // initialize earth mesh
-    failure = Globe_generate(&(pass->mesh), cfg);
+    Globe mesh;
+    failure = Globe_generate(&mesh, cfg);
     if(failure) {
         BitmapImage_free(globe_texture);
         return 1;
@@ -185,12 +164,29 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassPaths paths, GlobeConfig c
     pass->shader_vert = vert;
     pass->shader_frag = frag;
     GLuint VAO, VBO, EBO;
-    Globe_configure_buffers(pass->mesh, cfg, shader_program, &VAO, &VBO, &EBO);
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &EBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, mesh.vertex_count * 2 * sizeof(GLfloat), mesh.vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
+    glEnableVertexAttribArray(0);
+    glUseProgram(shader_program);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.rad);
+    // pass the sampler for the earth texture
+    glActiveTexture(globe_texture_id);
+    glUniform1i(glGetUniformLocation(shader_program, "globe_sampler"), 0);
+    glActiveTexture(0);
+    glUseProgram(0);
     BitmapImage_free(globe_texture);
     pass->VAO = VAO;
     pass->VBO = VBO;
     pass->EBO = EBO;
     pass->shader_program = shader_program;
+    pass->mesh = mesh;
     return 0;
 }
 
