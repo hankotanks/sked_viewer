@@ -7,7 +7,9 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include "util.h"
+#include "./util/log.h"
+#include "./util/bmp.h"
+#include "./util/shaders.h"
 #include "camera.h"
 
 typedef struct {

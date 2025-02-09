@@ -6,8 +6,10 @@
 
 #include "RGFW.h"
 
-#include "util.h"
-#include "lalg.h"
+#include "./util/lalg.h"
+
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 #define CAMERA_RAD_SCALAR 4.f
 #define CAMERA_ELE_SCALAR 0.9

@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "./include/util.h"
 #include "./include/globe.h"
 #include "./include/stations.h"
 #include "./include/camera.h"

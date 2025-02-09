@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "util.h"
+#include "./util/log.h"
 #include "camera.h"
 
 typedef struct {
