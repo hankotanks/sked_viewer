@@ -32,7 +32,9 @@
 }
 
 int main() {
-    parse_schedule_from_source("./schedules/r41192.skd"); // TODO
+    Schedule skd;
+    Schedule_build_from_source(&skd, "./schedules/r41192.skd"); // TODO
+    Schedule_free(skd);
     unsigned int failure;
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);

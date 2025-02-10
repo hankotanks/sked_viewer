@@ -7,31 +7,38 @@
 
 #include "log.h"
 
-typedef struct Node Node;
-struct Node {
-    char* key;
-    void* item;
+typedef struct __Node Node;
+struct __Node {
     Node* next;
+    char contents[];
 };
 
-void Node_free(Node n) {
-    free(n.key);
-    free(n.item);
-    if(n.next != NULL) Node_free(*(n.next));
+Node* Node_alloc(char* key, void* val, size_t bytes_per_elem) {
+    size_t bytes_per_key = sizeof(char) * (strlen(key) + 1);
+    Node* node = (Node*) malloc(sizeof(Node) + bytes_per_key + bytes_per_elem);
+    if(node == NULL) return NULL;
+    node->next = NULL;
+    strcpy(node->contents, key);
+    memcpy(&(node->contents[bytes_per_key]), (char*) val, bytes_per_elem);
+    return node;
+}
+
+void* Node_value(Node* node) {
+    return (void*) &(node->contents[strlen(node->contents) + 1]);
 }
 
 typedef struct {
     size_t size;
-    size_t cap;
     size_t bytes_per_elem;
+    size_t bucket_count;
     Node** buckets;
 } HashMap;
 
-unsigned int HashMap_init(HashMap* hm, size_t cap, size_t bytes_per_elem) {
+unsigned int HashMap_init(HashMap* hm, size_t bucket_count, size_t bytes_per_elem) {
     hm->size = 0;
-    hm->cap = cap;
     hm->bytes_per_elem = bytes_per_elem;
-    void* buckets = calloc(cap, sizeof(Node*));
+    hm->bucket_count = bucket_count;
+    void* buckets = calloc(bucket_count, sizeof(Node*));
     if(buckets == NULL) {
         LOG_ERROR("Failed to allocate HashMap.");
         return 1;
@@ -40,7 +47,7 @@ unsigned int HashMap_init(HashMap* hm, size_t cap, size_t bytes_per_elem) {
     return 0;
 }
 
-size_t hash(size_t cap, char* key) {
+size_t hash(size_t bucket_count, char* key) {
     const size_t BASE = 0x811c9dc5;
     const size_t PRIME = 0x01000193;
     size_t initial = BASE;
@@ -48,62 +55,50 @@ size_t hash(size_t cap, char* key) {
         initial ^= *key++;
         initial *= PRIME;
     }
-    return initial & (cap - 1);
+    return initial & (bucket_count - 1);
 }
 
 unsigned int HashMap_insert(HashMap* hm, char* key, void* val) {
     hm->size++;
-    Node* bucket = hm->buckets[hash(hm->cap, key)];
+    Node* bucket = hm->buckets[hash(hm->bucket_count, key)];
     Node* node;
     if(bucket == NULL) {
-        node = (Node*) calloc(1, sizeof(Node));
-        hm->buckets[hash(hm->cap, key)] = node;
+        node = Node_alloc(key, val, hm->bytes_per_elem);
+        hm->buckets[hash(hm->bucket_count, key)] = node;
     } else {
         while(bucket->next != NULL) bucket = bucket->next;
-        bucket->next = (Node*) calloc(1, sizeof(Node));
+        bucket->next = Node_alloc(key, val, hm->bytes_per_elem);
         node = bucket->next;
     }
     if(node == NULL) {
         LOG_ERROR("Unable to insert value in HashMap.");
         return 1;
     }
-    node->key = (char*) malloc(strlen(key) + 1);
-    if(node->key == NULL) {
-        LOG_ERROR("Unable to insert value in HashMap.");
-        return 1;
-    }
-    strcpy(node->key, key);
-    node->item = malloc(hm->bytes_per_elem);
-    if(node->item == NULL) {
-        LOG_ERROR("Unable to insert value in HashMap.");
-        return 1;
-    }
-    memcpy(node->item, val, hm->bytes_per_elem);
     return 0;
 }
 
 void* HashMap_get(HashMap hm, char* key) {
-    Node* node = hm.buckets[hash(hm.cap, key)];
+    Node* node = hm.buckets[hash(hm.bucket_count, key)];
     while(node != NULL) {
-        if(strcmp(node->key, key) == 0) return node->item;
+        if(strcmp(node->contents, key) == 0) return Node_value(node);
         node = node->next;
     }
     return NULL;
 }
 
 void HashMap_free(HashMap hm) {
-    for(size_t i = 0; i < hm.cap; ++i) {
+    for(size_t i = 0; i < hm.bucket_count; ++i) {
         Node* bucket = hm.buckets[i];
-        if(bucket != NULL) Node_free(*bucket);
+        if(bucket != NULL) free(bucket);
     }
     free(hm.buckets);
 }
 
 void HashMap_dump(HashMap hm, void (*func)(char*, void*)) {
-    for(size_t i = 0; i < hm.cap; ++i) {
+    for(size_t i = 0; i < hm.bucket_count; ++i) {
         Node* node = hm.buckets[i];
         while(node != NULL) {
-            func(node->key, node->item);
+            func(node->contents, Node_value(node));
             node = node->next;
         }
     }
