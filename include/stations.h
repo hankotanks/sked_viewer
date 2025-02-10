@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "./util/log.h"
+#include "./util/shaders.h"
 #include "camera.h"
 
 typedef struct {

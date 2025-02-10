@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "./include/globe.h"
 #include "./include/stations.h"
+#include "./include/skd.h"
+#include "./include/globe.h"
 #include "./include/camera.h"
 
 #ifndef RGFW_IMPLEMENTATION
@@ -31,6 +32,7 @@
 }
 
 int main() {
+    parse_schedule_from_source("./schedules/r41192.skd"); // TODO
     unsigned int failure;
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
