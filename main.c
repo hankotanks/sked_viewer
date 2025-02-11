@@ -32,10 +32,13 @@
 }
 
 int main() {
+    unsigned int failure;
+    // TODO: Still working on the Schedule parsing
     Schedule skd;
     Schedule_build_from_source(&skd, "./schedules/r41192.skd"); // TODO
+    failure = Schedule_debug_and_validate(skd, 0);
+    if(failure) abort();
     Schedule_free(skd);
-    unsigned int failure;
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     glewInit();

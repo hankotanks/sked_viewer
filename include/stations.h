@@ -61,6 +61,8 @@ comment_check_end:
             break;
         }
     }
+    free(line);
+    line = NULL;
     CLOSE_STREAM_ON_FAILURE(stream, flag == -1, cat, "Failed to count stations before parsing.");
     failure = fseek(stream, 0L, SEEK_SET);
     CLOSE_STREAM_ON_FAILURE(stream, failure, cat, "Failed to seek to beginning of catalog.");
@@ -108,6 +110,7 @@ station_parse_start:
             break;
         }
     }
+    free(line);
     CLOSE_STREAM_ON_FAILURE(stream, flag == -1, cat, "Failed to parse stations.");
     cat.station_count = station_count;
     return cat;

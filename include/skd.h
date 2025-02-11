@@ -13,32 +13,6 @@
 
 #define BUCKET_COUNT 10
 
-/*
-typedef struct {
-    size_t station_count;
-    struct {
-        char id[2];
-        char id_antenna;
-        char name[8];
-        float lat, lon;
-    }* catalog;
-    size_t source_count;
-    struct {
-        char iau[7];
-        char name[8];
-        uint8_t alph_hrs, alph_min, decl_hrs, decl_min;
-        float alph_sec, decl_sec, epoch;
-    }* sources;
-    size_t obs_count;
-    struct {
-        uint32_t start;
-        uint32_t duration;
-        size_t source;
-        size_t stations[];
-    } obs;
-} Schedule;
-*/
-
 typedef struct {
     char name[9];
     float lat, lon;
@@ -73,9 +47,9 @@ void SourceQuasar_debug(char* iau, void* source) {
 }
 
 typedef struct {
-    char source[9];
     Datetime timestamp;
     uint16_t cal_duration, obs_duration;
+    char source[9];
     char ids[];
 } Obs;
 
@@ -84,32 +58,73 @@ typedef struct {
     HashMap stations_pos;
     // HashMap sources_sat;
     HashMap sources;
+    HashMap sources_alias;
     size_t obs_count;
     Obs* obs;
 } Schedule;
+
+unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
+    char station_key[2]; station_key[1] = '\0';
+    char* station_id;
+    char* quasar_id;
+    Station* station_pos;
+    SourceQuasar* quasar;
+    Obs* curr;
+    size_t i, j;
+    for(i = 0; i < skd.obs_count; ++i) {
+        curr = (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
+        if(display) printf("%8s [%s]: %4hu+%3hu [%2hhu:%2hhu:%2hhu]\n", 
+            curr->source, curr->ids, 
+            curr->timestamp.yrs, curr->timestamp.day, 
+            curr->timestamp.hrs, curr->timestamp.min, curr->timestamp.sec);
+        if((quasar_id = (char*) HashMap_get(skd.sources_alias, curr->source)) == NULL) quasar_id = curr->source;
+        if((quasar = (SourceQuasar*) HashMap_get(skd.sources, quasar_id)) == NULL) {
+            LOG_INFO("IAU source name is missing corresponding SourceQuasar entry in HashMap.");
+            return 1;
+        } else if(display) {
+            printf("  ");
+            SourceQuasar_debug(curr->source, (void*) quasar);
+        }
+        for(j = 0; j < strlen(curr->ids); ++j) {
+            station_key[0] = curr->ids[j];
+            if((station_id = (char*) HashMap_get(skd.stations_ant, station_key)) == NULL) {
+                LOG_INFO("Antenna key in observation lacks matching HashMap entry.");
+                return 1;
+            } else {
+                if((station_pos = (Station*) HashMap_get(skd.stations_pos, station_id)) == NULL) {
+                    LOG_INFO("2-char station id is missing corresponding Station entry in HashMap.");
+                    return 1;
+                } else if(display) {
+                    printf("  [%c] ", station_key[0]);
+                    Station_debug(station_id, (void*) station_pos);
+                }
+            }
+        }
+    }
+    if(display) printf("Successfully validated schedule.\n");
+    return 0;
+}
 
 void Schedule_free(Schedule skd) {
     HashMap_free(skd.stations_ant);
     HashMap_free(skd.stations_pos);
     HashMap_free(skd.sources);
+    HashMap_free(skd.sources_alias);
+    free(skd.obs);
 }
 
 long seek_to_section(FILE* stream, const char* header) {
-    unsigned int found;
-    long index;
     ssize_t line_len;
     char* line = NULL;
     size_t line_cap = 0, header_len = strlen(header);
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
-        if(found) return ftell(stream);
-        if(line_len >= header_len && strncmp(line, header, header_len) == 0) found = 1;
+        if((size_t) line_len >= header_len && strncmp(line, header, header_len) == 0) {
+            free(line);
+            return ftell(stream);
+        }
     }
     free(line);
     return -1L;
-}
-
-void debug_stations_ant_hashmap(char* id, void* val) {
-    printf("%s: %s\n", id, (char*) val);
 }
 
 unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
@@ -137,11 +152,14 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         ret = sscanf(line, "P %2s %s %*f %*f %*f %*d %f %f %*s \n", id, station.name, &(station.lat), &(station.lon));
         if(ret == 4) HashMap_insert(&(skd->stations_pos), id, (void*) &station);
     }
+    free(line);
+    line = NULL;
     failure = fseek(stream, 0, SEEK_SET);
     CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
     sources_idx = seek_to_section(stream, "$SOURCES");
     CLOSE_STREAM_ON_FAILURE(stream, sources_idx < 0, 1, "Schedule contains no $SOURCES section.");
     HashMap_init(&(skd->sources), BUCKET_COUNT, sizeof(SourceQuasar));
+    HashMap_init(&(skd->sources_alias), BUCKET_COUNT, 9);
     char iau[9];
     SourceQuasar source;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
@@ -152,9 +170,12 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
             &(source.decl_hh), &(source.decl_mm), &(source.decl_ss), &(source.epoch));
         if(ret == 9) {
             if(source.common_name[0] == '$') source.common_name[0] = '\0';
+            else HashMap_insert(&(skd->sources_alias), source.common_name, iau);
             HashMap_insert(&(skd->sources), iau, &source);
         }
     }
+    free(line);
+    line = NULL;
     obs_idx = seek_to_section(stream, "$SKED");
     CLOSE_STREAM_ON_FAILURE(stream, obs_idx < 0, 1, "Schedule contains no $SKED section.");
     skd->obs_count = 0;
@@ -162,39 +183,45 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         if(line[0] == '$') break;
         (skd->obs_count)++;
     }
-    skd->obs = (Obs*) malloc(skd->obs_count * sizeof(Obs));
+    free(line);
+    line = NULL;
+    skd->obs = (Obs*) malloc(skd->obs_count * (sizeof(Obs) + skd->stations_ant.size + 1));
+    failure = fseek(stream, 0, SEEK_SET);
+    CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
     obs_idx = seek_to_section(stream, "$SKED");
     CLOSE_STREAM_ON_FAILURE(stream, obs_idx < 0, 1, "Failed to return to Schedule's $SKED section.");
-    // TODO: From here on is in-progress
-    char start_timestamp[12];
+    char timestamp_raw[12];
     char cable_wrap[skd->stations_ant.size * 2 + 1];
-    size_t i = 0;
+    Obs* current;
+    size_t i = 0, j;
     while((line_len = getline(&line, &line_cap, stream)) != -1 && i < skd->obs_count) {
         if(line[0] == '$') break;
-// 0308-611  10 SX PREOB  25030190906        80 MIDOB         0 POSTOB F-JCLCYW 1F000000 1F000000 1F000000 1F000000 YYNN    76    80    70    80 
-        ret = sscanf(line, " %8s %hu",//%*c%*c %*s %s %u %*s %*u %*s %s %*s \n",
-            skd->obs[i].source, &(skd->obs[i].cal_duration));//, start_timestamp, &(skd->obs[i].obs_duration), cable_wrap);
-        if(ret != 0) printf("%s\n", skd->obs[i].source);
-        i++;
+        current = (Obs*) ((char*) skd->obs + i * (sizeof(Obs) + skd->stations_ant.size + 1));
+        ret = sscanf(line, " %8s %hu %*c%*c %*s %s %hu %*s %*u %*s %s %*s \n",
+            current->source, &(current->cal_duration), timestamp_raw, &(current->obs_duration), cable_wrap);
+        if(ret == 5) {
+            failure = Datetime_parse_from_obs(&(current->timestamp), "y2d3h2m2s2", timestamp_raw);
+            if(failure) {
+                LOG_INFO("Failed to parse observation Datetime. Skipping.");
+                continue;
+            }
+            if(strlen(cable_wrap) % 2 != 0) {
+                LOG_INFO("Invalid cable wrap string. Skipping observation.");
+                continue;
+            }
+            for(j = 0; j < strlen(cable_wrap) / 2; ++j) current->ids[j] = cable_wrap[j * 2];
+            current->ids[j + 1] = '\0';
+            if(current->timestamp.yrs < 100) {
+                if(current->timestamp.yrs > 78) current->timestamp.yrs += 1900;
+                else current->timestamp.yrs += 2000;
+            }
+            i++;
+        } else LOG_INFO("Failed to parse observation.");
     }
-    // //
-    /*
-    char source[9];
-    Datetime timestamp;
-    uint16_t cal_duration, obs_duration;
-    char ids[];
-    // //
-    char cable_wrap[skd->stations_ant.size + 1];
-    Obs obs;
-    while((line_len = getline(&line, &line_cap, stream)) != -1) {
-        if(line[0] == '$') break;
-        ret = sscanf(line, " %8s %hu %*c%*c %*s %2hhu%3hu%2hhu%2hhu%2hhu %u %*s %*u %*s %s %*s \n",
-            obs.source, &(obs.cal_duration), )
-    }*/
+    free(line);
+    skd->obs_count = i;
     fclose(stream);
-    //HashMap_dump(skd->stations_pos, Station_debug);
-    //HashMap_dump(skd->stations_ant, debug_stations_ant_hashmap);
-    // HashMap_dump(sources, Source_debug);
+    return 0;
 }
 
 #endif /* SKD_H */

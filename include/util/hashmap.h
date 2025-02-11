@@ -72,6 +72,7 @@ unsigned int HashMap_insert(HashMap* hm, char* key, void* val) {
     }
     if(node == NULL) {
         LOG_ERROR("Unable to insert value in HashMap.");
+        free(node);
         return 1;
     }
     return 0;
@@ -87,9 +88,15 @@ void* HashMap_get(HashMap hm, char* key) {
 }
 
 void HashMap_free(HashMap hm) {
+    Node* bucket;
+    Node* temp;
     for(size_t i = 0; i < hm.bucket_count; ++i) {
-        Node* bucket = hm.buckets[i];
-        if(bucket != NULL) free(bucket);
+        bucket = hm.buckets[i];
+        while(bucket != NULL) {
+            temp = bucket->next;
+            free(bucket);
+            bucket = temp;
+        }
     }
     free(hm.buckets);
 }
