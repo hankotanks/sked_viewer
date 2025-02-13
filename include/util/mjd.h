@@ -60,16 +60,25 @@ unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, const cha
                 return 1;
         }
     }
+    printf("%s: %hu %hu %hhu %hhu %hhu\n", line, dt->yrs, dt->day, dt->hrs, dt->min, dt->sec);
     return 0;
 }
 
 float Datetime_to_mjd(Datetime dt) {
-    float yyyy, ddd, hh, mm, ss;
-    yyyy = (float) dt.yrs; ddd = (float) dt.day;
-    hh = (float) dt.hrs; mm = (float) dt.min; ss = (float) dt.sec;
-    float jd = 367.f * yyyy - floorf(7.f * (yyyy + floorf((mm + 9.f) / 12.f)) / 4.f) + \
-        (275.f * mm) / 9.f + ddd + 1721013.5 + hh / 24.f + mm / 1440.f + ss / 86400.f;
+    float yrs, day, hrs, min, sec;
+    yrs = (float) dt.yrs; day = (float) dt.day;
+    hrs = (float) dt.hrs; min = (float) dt.min; sec = (float) dt.sec;
+    float jd = 367.f * yrs - floorf(7.f * (yrs + floorf((min + 9.f) / 12.f)) / 4.f) + \
+        (275.f * min) / 9.f + day + 1721013.5 + hrs / 24.f + min / 1440.f + sec / 86400.f;
     return jd - 2400000.5;
+}
+
+float Datetime_greenwich_sidereal_time(Datetime dt) {
+    float jc1 = Datetime_to_mjd(dt) / 36525.f;
+    float jc2 = jc1 * jc1;
+    float jc3 = jc2 * jc1;
+    float gst = 100.46061837 + 36000.770053608 * jc1 + 0.000387933 * jc2 - jc3 / 38710000.f;
+    return fmod(gst, 360.f);
 }
 
 #endif /* MJD_H */

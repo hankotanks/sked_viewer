@@ -7,11 +7,13 @@
 
 #include "camera.h"
 #include "skd.h"
+#include "util/mjd.h"
 
 typedef struct {
-    GLsizei station_count;
+    GLsizei station_count, source_count;
     char* ids;
     GLfloat* stations_pos;
+    GLfloat* source_quasar_pos;
 } ScheduleArrays;
 
 void ScheduleArrays_free(ScheduleArrays data) {
@@ -21,6 +23,7 @@ void ScheduleArrays_free(ScheduleArrays data) {
 
 unsigned int ScheduleArrays_build(ScheduleArrays* data, Schedule* skd) {
     size_t station_count = skd->stations_ant.size;
+    size_t source_count = skd->sources.size;
     data->ids = (char*) calloc(station_count + 1, sizeof(char));
     if(data->ids == NULL) {
         LOG_ERROR("Failed to allocate while building ScheduleArrays.");
@@ -35,11 +38,10 @@ unsigned int ScheduleArrays_build(ScheduleArrays* data, Schedule* skd) {
     // TODO: Remove
     // HashMap_dump(skd->stations_ant, debug_station_antenna_keys);
     // HashMap_dump(skd->stations_pos, Station_debug);
-    size_t i, j = 0;
     Node* node;
     char current_id[3];
     Station* current_station;
-    for(i = 0; i < skd->stations_ant.bucket_count; ++i) {
+    for(size_t i = 0, j = 0; i < skd->stations_ant.bucket_count; ++i) {
         node = skd->stations_ant.buckets[i];
         while(node != NULL) {
             strcpy(current_id, (char*) Node_value(node));
@@ -48,17 +50,37 @@ unsigned int ScheduleArrays_build(ScheduleArrays* data, Schedule* skd) {
                 LOG_INFO("Skipping a station while building ScheduleArrays. Schedule might not have been validated.");
                 station_count--;
             }
-            data->stations_pos[j * 2 + 0] = (GLfloat) (current_station->lat - 5.f) * M_PI / 180.f; // TODO: Not sure why this 5 degree offset is required
-            data->stations_pos[j * 2 + 1] = (GLfloat) (180.f - (current_station->lon + 90.f)) * M_PI / 180.f;
+            data->stations_pos[j * 2 + 0] = (GLfloat) current_station->lam;
+            data->stations_pos[j * 2 + 1] = (GLfloat) current_station->phi;
             data->ids[j++] = node->contents[0];
             node = node->next;
         }
     }
     data->station_count = (GLsizei) station_count;
-    if(j > station_count) {
-        LOG_ERROR("Schedule contained more Stations than expected.");
+    data->source_quasar_pos = (GLfloat*) malloc(sizeof(GLfloat) * source_count * 2);
+    if(data->source_quasar_pos == NULL) {
+        LOG_ERROR("Failed to allocate while building ScheduleArrays.");
         return 1;
     }
+    SourceQuasar* current_source;
+    for(size_t i = 0, j = 0; i < skd->sources.bucket_count; ++i) {
+        node = skd->sources.buckets[i];
+        while(node != NULL) {
+            current_source = (SourceQuasar*) Node_value(node);
+            if(current_source == NULL) {
+                LOG_INFO("Skipping a source while building ScheduleArrays. Schedule might not have been validated.");
+                source_count--;
+            }
+            data->source_quasar_pos[j++] = (GLfloat) current_source->lam;
+            data->source_quasar_pos[j++] = (GLfloat) current_source->alf;
+            node = node->next;
+        }
+    }
+    data->source_count = (GLsizei) source_count;
+    //
+    // Below is unfinished
+    //
+
     return 0;
 }
 

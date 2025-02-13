@@ -15,8 +15,7 @@
 typedef struct {
     GLfloat* vertices;
     GLuint* indices;
-    size_t vertex_count;
-    size_t index_count;
+    size_t vertex_count, index_count;
 } Globe;
 
 #define GLOBE_ERROR (Globe) {\
@@ -34,7 +33,7 @@ void Globe_free(Globe mesh) {
 typedef struct {
     size_t slices;
     size_t stacks;
-    float rad;
+    float globe_radius;
 } GlobeConfig;
 
 unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
@@ -49,9 +48,9 @@ unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
     mesh->vertices[k_v++] = (GLfloat) M_PI;
     mesh->vertices[k_v++] = (GLfloat) 0.f;
     for(size_t i = 0; i < (cfg.stacks - 1); ++i) {
-        float phi = M_PI * (float) (i + 1) / (float) cfg.stacks;
+        float phi = 180.f * (float) (i + 1) / (float) cfg.stacks;
         for(size_t j = 0; j < cfg.slices; ++j) {
-            mesh->vertices[k_v++] = M_PI * 2.0 * (float) j / (float) cfg.slices;
+            mesh->vertices[k_v++] = 360.f * (float) j / (float) cfg.slices;
             mesh->vertices[k_v++] = phi;
         }
     }
@@ -121,6 +120,7 @@ void GlobePass_update_and_draw(GlobePass pass, Camera cam) {
 }
 
 typedef struct {
+    float globe_lam_offset;
     Shader* shader_vert;
     Shader* shader_frag;
     const char* path_globe_texture;
@@ -159,9 +159,10 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassDesc desc, GlobeConfig cfg
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
     glUseProgram(shader_program);
-    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.rad);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.globe_radius);
     // pass the sampler for the earth texture
     glActiveTexture(globe_texture_id);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_lam_offset"), desc.globe_lam_offset);
     glUniform1i(glGetUniformLocation(shader_program, "globe_sampler"), 0);
     glActiveTexture(0);
     glUseProgram(0);

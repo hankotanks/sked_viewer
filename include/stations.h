@@ -102,8 +102,8 @@ station_parse_start:
         }
         cat.ids[idx][0] = id[0];
         cat.ids[idx][1] = id[1];
-        cat.pos[idx * 2 + 0] = (GLfloat) (lam - 5.f) * M_PI / 180.f; // TODO: Not sure why this 5 degree offset is required
-        cat.pos[idx * 2 + 1] = (GLfloat) (180.f - (phi + 90.f)) * M_PI / 180.f;
+        cat.pos[idx * 2 + 0] = (GLfloat) lam;
+        cat.pos[idx * 2 + 1] = (GLfloat) (90.f - phi);
         idx++;
         if(file_size - ftell(stream) == 0) {
             flag = 0;

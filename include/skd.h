@@ -15,34 +15,32 @@
 
 typedef struct {
     char name[9];
-    float lat, lon;
+    float lam, phi;
 } Station;
 
 void Station_debug(char* id, void* station) {
     Station* temp = (Station*) station;
-    printf("%s: %8s [%+7.2f, %+6.2f]\n", id, temp->name, temp->lat, temp->lon);
+    printf("%s: %8s [%+7.2f, %+6.2f]\n", id, temp->name, temp->lam, temp->phi);
 }
 
 typedef struct {
     char common_name[9];
-    uint8_t raan_hh, raan_mm;
-    int8_t decl_hh, decl_mm;
-    float raan_ss;
-    float decl_ss;
-    float epoch;
+    float lam, alf;
+    uint8_t raan_hrs, raan_min; int8_t decl_deg, decl_min;
+    float raan_sec, decl_sec;
 } SourceQuasar;
 
 void SourceQuasar_debug(char* iau, void* source) {
     SourceQuasar* temp = (SourceQuasar*) source;
     if(temp->common_name[0] == '\0') {
-        printf("%s: raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f] epoch: %.1f\n", iau, 
-            temp->raan_hh, temp->raan_mm, temp->raan_ss, 
-            temp->decl_hh, temp->decl_mm, temp->decl_ss, temp->epoch);
+        printf("%s: raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f]\n", iau, 
+            temp->raan_hrs, temp->raan_min, temp->raan_sec, 
+            temp->decl_deg, temp->decl_min, temp->decl_sec);
     } else {
-        printf("%s (%s): raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f] epoch: %.1f\n", 
+        printf("%s (%s): raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f]\n", 
             iau, temp->common_name, 
-            temp->raan_hh, temp->raan_mm, temp->raan_ss, 
-            temp->decl_hh, temp->decl_mm, temp->decl_ss, temp->epoch);
+            temp->raan_hrs, temp->raan_min, temp->raan_sec, 
+            temp->decl_deg, temp->decl_min, temp->decl_sec);
     }
 }
 
@@ -153,8 +151,11 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         // if(line[0] == '$') break;
         ret = sscanf(line, "A %1s %*s %*s %*f %*f %*d %*f %*f %*f %*d %*f %*f %*f %2s %*s %*s \n", key, id);
         if(ret == 2) HashMap_insert(&(skd->stations_ant), key, (void*) id);
-        ret = sscanf(line, "P %2s %s %*f %*f %*f %*d %f %f %*s \n", id, station.name, &(station.lat), &(station.lon));
-        if(ret == 4) HashMap_insert(&(skd->stations_pos), id, (void*) &station);
+        ret = sscanf(line, "P %2s %s %*f %*f %*f %*d %f %f %*s \n", id, station.name, &(station.lam), &(station.phi));
+        if(ret == 4) {
+            station.phi = 90.f - station.phi;
+            HashMap_insert(&(skd->stations_pos), id, (void*) &station);
+        } // TODO: If the station position fails to parse, the antenna entry should be removed
     }
     free(line);
     line = NULL;
@@ -168,11 +169,14 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     SourceQuasar source;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
         if(line[0] == '$') break;
-        ret = sscanf(line, " %8s %8s %hhu %hhu %f %hhd %hhd %f %f %*f %*s %*s \n",
+        ret = sscanf(line, " %8s %8s %hhu %hhu %f %hhd %hhd %f %*f %*f %*s %*s \n",
             iau, source.common_name,
-            &(source.raan_hh), &(source.raan_mm), &(source.raan_ss), 
-            &(source.decl_hh), &(source.decl_mm), &(source.decl_ss), &(source.epoch));
-        if(ret == 9) {
+            &(source.raan_hrs), &(source.raan_min), &(source.raan_sec), 
+            &(source.decl_deg), &(source.decl_min), &(source.decl_sec));
+        if(ret == 8) {
+            source.lam = (float) source.decl_deg + (float) source.decl_min / 60.f + source.decl_sec / 3600.f;
+            source.alf = (float) source.raan_hrs + (float) source.raan_min / 60.f + source.raan_sec / 3600.f;
+            source.alf *= 15.f;
             if(source.common_name[0] == '$') source.common_name[0] = '\0';
             else HashMap_insert(&(skd->sources_alias), source.common_name, iau);
             HashMap_insert(&(skd->sources), iau, &source);
@@ -216,7 +220,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
             for(j = 0; j < strlen(cable_wrap) / 2; ++j) current->ids[j] = cable_wrap[j * 2];
             current->ids[j + 1] = '\0';
             if(current->timestamp.yrs < 100) {
-                if(current->timestamp.yrs > 78) current->timestamp.yrs += 1900;
+                if(current->timestamp.yrs > 78) current->timestamp.yrs += 1900; // TODO: Look for a better way to handle this
                 else current->timestamp.yrs += 2000;
             }
             i++;
