@@ -1,2 +1,3 @@
 Compile:: `+gcc main.c -lm -lX11 -lXrandr -lGL -lGLEW+`
+Compile (Debugging):: `+gcc main.c -lm -lX11 -lXrandr -lGL -lGLEW -ggdb3 -Wall -Wextra+`
 Valgrind:: `+valgrind --leak-check=full --show-reachable=yes --error-limit=no --suppressions=ext.supp --log-file=./logs/leaks.log ./a.out+`

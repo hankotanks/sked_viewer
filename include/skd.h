@@ -127,6 +127,10 @@ long seek_to_section(FILE* stream, const char* header) {
     return -1L;
 }
 
+void debug_station_antenna_keys(char* key, void* val) {
+    printf("%s: %s\n", key, (char*) val);
+}
+
 unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     FILE* stream = fopen(path, "rb");
     if(stream == NULL) {

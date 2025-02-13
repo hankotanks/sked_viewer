@@ -97,15 +97,12 @@ unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
 
 typedef struct {
     Globe mesh;
-    GLuint shader_vert, shader_frag;
     GLuint shader_program;
     GLuint VAO, VBO, EBO;
 } GlobePass;
 
 void GlobePass_free(GlobePass pass) {
     Globe_free(pass.mesh);
-    glDeleteShader(pass.shader_vert);
-    glDeleteShader(pass.shader_frag);
     glDeleteProgram(pass.shader_program);
     glDeleteVertexArrays(1, &(pass.VAO));
     glDeleteBuffers(1, &(pass.VBO));
@@ -124,15 +121,15 @@ void GlobePass_update_and_draw(GlobePass pass, Camera cam) {
 }
 
 typedef struct {
-    const char* path_vert_shader;
-    const char* path_frag_shader;
+    Shader* shader_vert;
+    Shader* shader_frag;
     const char* path_globe_texture;
-} GlobePassPaths;
+} GlobePassDesc;
 
-unsigned int GlobePass_init(GlobePass* pass, GlobePassPaths paths, GlobeConfig cfg) {
+unsigned int GlobePass_init(GlobePass* pass, GlobePassDesc desc, GlobeConfig cfg) {
     unsigned int failure;
     BitmapImage globe_texture;
-    failure = BitmapImage_load_from_file(&globe_texture, paths.path_globe_texture);
+    failure = BitmapImage_load_from_file(&globe_texture, desc.path_globe_texture);
     if(failure) return 1;
     GLuint globe_texture_id;
     BitmapImage_build_texture(globe_texture, &globe_texture_id, GL_TEXTURE0);
@@ -144,27 +141,12 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassPaths paths, GlobeConfig c
         return 1;
     }
     // configure earth shaders
-    GLuint vert, frag;
-    failure = compile_shader(&vert, GL_VERTEX_SHADER, paths.path_vert_shader);
-    if(failure) {
-        BitmapImage_free(globe_texture);
-        return 1;
-    }
-    failure = compile_shader(&frag, GL_FRAGMENT_SHADER, paths.path_frag_shader);
-    if(failure) {
-        BitmapImage_free(globe_texture);
-        glDeleteShader(vert);
-    }
     GLuint shader_program;
-    failure = assemble_shader_program(&shader_program, vert, frag);
+    failure = assemble_shader_program(&shader_program, desc.shader_vert, desc.shader_frag);
     if(failure) {
         BitmapImage_free(globe_texture);
-        glDeleteShader(vert);
-        glDeleteShader(frag);
         return 1;
     };
-    pass->shader_vert = vert;
-    pass->shader_frag = frag;
     GLuint VAO, VBO, EBO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);

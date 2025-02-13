@@ -141,8 +141,8 @@ void StationPass_update_and_draw(StationPass pass, Camera cam) {
 
 typedef struct {
     float globe_radius;
-    GLuint shader_lat_lon;
-    const char* path_frag_shader;
+    Shader* shader_vert;
+    Shader* shader_frag;
     const char* path_pos_catalog;
 } StationPassDesc;
 
@@ -154,17 +154,10 @@ unsigned int StationPass_init(StationPass* pass, StationPassDesc desc) {
     cat = Catalog_parse_from_file(desc.path_pos_catalog);
     if(cat.station_count == 0) return 1;
     // configure station shaders
-    GLuint frag;
-    failure = compile_shader(&frag, GL_FRAGMENT_SHADER, desc.path_frag_shader);
-    if(failure) {
-        Catalog_free(cat);
-        return 1;
-    }
     GLuint shader_program;
-    failure = assemble_shader_program(&shader_program, desc.shader_lat_lon, frag);
+    failure = assemble_shader_program(&shader_program, desc.shader_vert, desc.shader_frag);
     if(failure) {
         Catalog_free(cat);
-        glDeleteShader(frag);
         return 1;
     }
     GLuint VAO, VBO;

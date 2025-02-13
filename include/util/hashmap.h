@@ -102,8 +102,9 @@ void HashMap_free(HashMap hm) {
 }
 
 void HashMap_dump(HashMap hm, void (*func)(char*, void*)) {
+    Node* node;
     for(size_t i = 0; i < hm.bucket_count; ++i) {
-        Node* node = hm.buckets[i];
+        node = hm.buckets[i];
         while(node != NULL) {
             func(node->contents, Node_value(node));
             node = node->next;
