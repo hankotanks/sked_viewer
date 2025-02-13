@@ -1,13 +1,15 @@
+#include "include/util/mjd.h"
 #define LOGGING
-#define DISABLE_STATION_PASS
+#define USE_POSITION_CATALOG
 
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdint.h>
 
-#include "./include/stations.h"
+// #include "./include/stations.h"
 #include "./include/skd.h"
-#include "./include/skd_render.h"
+#include "./include/stations.h"
+#include "./include/sources.h"
 #include "./include/globe.h"
 #include "./include/camera.h"
 
@@ -35,6 +37,10 @@
 }
 
 int main() {
+    Datetime temp = { .yrs = 2025, .day = 1, .hrs = 0, .min = 0, .sec = 0 };
+    Datetime_greenwich_sidereal_time(temp);
+    temp = (Datetime) { .yrs = 2025, .day = 4, .hrs = 0, .min = 0, .sec = 0 };
+    Datetime_greenwich_sidereal_time(temp);
     unsigned int failure;
     // build and validate Schedule
     Schedule skd; // TODO: Still working on the Schedule parsing
@@ -53,8 +59,9 @@ int main() {
     Camera_set_aspect(&camera, window->r.w, window->r.h);
     Camera_perspective(&camera, CAMERA_CONFIG);
     // set up shaders
-    Shader shader_lam_phi, shader_fill_in, shader_basemap;
+    Shader shader_lam_phi, shader_alf_phi, shader_fill_in, shader_basemap;
     shader_lam_phi = Shader_init("./shaders/lam_phi.vs", GL_VERTEX_SHADER);
+    shader_alf_phi = Shader_init("./shaders/alf_phi.vs", GL_VERTEX_SHADER);
     shader_fill_in = Shader_init("./shaders/fill_in.fs", GL_FRAGMENT_SHADER);
     shader_basemap = Shader_init("./shaders/basemap.fs", GL_FRAGMENT_SHADER);
     // configure GlobePass
@@ -67,36 +74,44 @@ int main() {
     GlobePass globe_pass;
     failure = GlobePass_init(&globe_pass, globe_pass_desc, GLOBE_CONFIG);
     if(failure) abort();
-#ifndef DISABLE_STATION_PASS
+    // configure SourcePass
+    SourcePassDesc source_pass_desc = (SourcePassDesc) {
+        .globe_radius = GLOBE_CONFIG.globe_radius,
+        .color = { 0.f, 1.f, 0.f },
+        .shader_vert = &shader_alf_phi,
+        .shader_frag = &shader_fill_in,
+    };
+    SourcePass source_pass;
+    failure = SourcePass_build(&source_pass, source_pass_desc, skd);
+    if(failure) abort();
     // configure StationPass
     StationPassDesc station_pass_desc = (StationPassDesc) {
         .globe_radius = GLOBE_CONFIG.globe_radius,
+        .color = { 1.f, 0.f, 0.f },
         .shader_vert = &shader_lam_phi,
         .shader_frag = &shader_fill_in,
-        .path_pos_catalog = "./assets/position.cat",
     };
     StationPass station_pass;
-    failure = StationPass_init(&station_pass, station_pass_desc);
-    if(failure) abort();
+#ifndef USE_POSITION_CATALOG
+    failure = StationPass_build_from_schedule(&station_pass, station_pass_desc, skd);
 #else
-    // configure SchedulePass
-    SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
-        .globe_radius = GLOBE_CONFIG.globe_radius,
-        .shader_vert = &shader_lam_phi,
-        .shader_frag = &shader_fill_in,
-    };
-    SchedulePass skd_pass;
-    failure = SchedulePass_init(&skd_pass, skd_pass_desc, &skd);
-    if(failure) abort();
+    failure = StationPass_build_from_catalog(&station_pass, station_pass_desc, "./assets/position.cat");
 #endif
+    if(failure) abort();
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
-            if(window->event.type == RGFW_windowResized) {
-                glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
-                // adjust aspect if window size changed
-                Camera_set_aspect(&camera, window->r.w, window->r.h);
-                Camera_perspective(&camera, CAMERA_CONFIG);
+            switch(window->event.type) {
+                case RGFW_windowResized:
+                    glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
+                    // adjust aspect if window size changed
+                    Camera_set_aspect(&camera, window->r.w, window->r.h);
+                    Camera_perspective(&camera, CAMERA_CONFIG);
+                    break;
+                case RGFW_keyPressed:
+                    // see if the current observation was advanced
+                    if(window->event.key == RGFW_space) SourcePass_next(&source_pass, skd);
+                default: break;
             }
             // process user input
             CameraController_handle_input(&camera_controller, &camera, GLOBE_CONFIG.globe_radius, window);
@@ -107,22 +122,16 @@ int main() {
         Camera_update(&camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-#ifndef DISABLE_STATION_PASS
+        SourcePass_update_and_draw(source_pass, camera);
         StationPass_update_and_draw(station_pass, camera);
-#else
-        SchedulePass_update_and_draw(skd_pass, camera);
-#endif
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
     // clean up buffers
     GlobePass_free(globe_pass);
     Schedule_free(skd);
-#ifndef DISABLE_STATION_PASS
     StationPass_free(station_pass);
-#else
-    SchedulePass_free(skd_pass);
-#endif
+    SourcePass_free(source_pass);
     Shader_destroy(&shader_lam_phi);
     Shader_destroy(&shader_fill_in);
     Shader_destroy(&shader_basemap);

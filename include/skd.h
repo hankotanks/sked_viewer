@@ -25,7 +25,7 @@ void Station_debug(char* id, void* station) {
 
 typedef struct {
     char common_name[9];
-    float lam, alf;
+    float alf, phi;
     uint8_t raan_hrs, raan_min; int8_t decl_deg, decl_min;
     float raan_sec, decl_sec;
 } SourceQuasar;
@@ -61,6 +61,11 @@ typedef struct {
     Obs* obs;
 } Schedule;
 
+Obs* Schedule_get_observation(Schedule skd, size_t i) {
+    if(i >= skd.obs_count) return NULL;
+    return (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
+}
+
 unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char station_key[2]; station_key[1] = '\0';
     char* station_id;
@@ -70,7 +75,8 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     Obs* curr;
     size_t i, j;
     for(i = 0; i < skd.obs_count; ++i) {
-        curr = (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
+        curr = Schedule_get_observation(skd, i);
+        // curr = (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
         if(display) printf("%8s [%s]: %4hu+%3hu [%2hhu:%2hhu:%2hhu]\n", 
             curr->source, curr->ids, 
             curr->timestamp.yrs, curr->timestamp.day, 
@@ -174,9 +180,9 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
             &(source.raan_hrs), &(source.raan_min), &(source.raan_sec), 
             &(source.decl_deg), &(source.decl_min), &(source.decl_sec));
         if(ret == 8) {
-            source.lam = (float) source.decl_deg + (float) source.decl_min / 60.f + source.decl_sec / 3600.f;
             source.alf = (float) source.raan_hrs + (float) source.raan_min / 60.f + source.raan_sec / 3600.f;
             source.alf *= 15.f;
+            source.phi = (float) source.decl_deg + (float) source.decl_min / 60.f + source.decl_sec / 3600.f;
             if(source.common_name[0] == '$') source.common_name[0] = '\0';
             else HashMap_insert(&(skd->sources_alias), source.common_name, iau);
             HashMap_insert(&(skd->sources), iau, &source);
@@ -204,7 +210,8 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     size_t i = 0, j;
     while((line_len = getline(&line, &line_cap, stream)) != -1 && i < skd->obs_count) {
         if(line[0] == '$') break;
-        current = (Obs*) ((char*) skd->obs + i * (sizeof(Obs) + skd->stations_ant.size + 1));
+        current = Schedule_get_observation(*skd, i);
+        // current = (Obs*) ((char*) skd->obs + i * (sizeof(Obs) + skd->stations_ant.size + 1));
         ret = sscanf(line, " %8s %hu %*c%*c %*s %s %hu %*s %*u %*s %s %*s \n",
             current->source, &(current->cal_duration), timestamp_raw, &(current->obs_duration), cable_wrap);
         if(ret == 5) {
@@ -224,7 +231,9 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
                 else current->timestamp.yrs += 2000;
             }
             i++;
-        } else LOG_INFO("Failed to parse observation.");
+        } else {
+            LOG_INFO("Failed to parse observation.");
+        }
     }
     free(line);
     skd->obs_count = i;

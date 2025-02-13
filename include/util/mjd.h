@@ -28,7 +28,7 @@ unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, const cha
         strcpy(&(fmt[j]), "%*u");
         fmt[j + 1] = format[i * 2 + 1];
     }
-    uint tmp, val[strlen(ord)];
+    unsigned int tmp, val[strlen(ord)];
     int ret;
     switch(strlen(ord)) {
         case 0:
@@ -60,7 +60,7 @@ unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, const cha
                 return 1;
         }
     }
-    printf("%s: %hu %hu %hhu %hhu %hhu\n", line, dt->yrs, dt->day, dt->hrs, dt->min, dt->sec);
+    // printf("%s: %hu %hu %hhu %hhu %hhu\n", line, dt->yrs, dt->day, dt->hrs, dt->min, dt->sec);
     return 0;
 }
 
@@ -68,13 +68,13 @@ float Datetime_to_mjd(Datetime dt) {
     float yrs, day, hrs, min, sec;
     yrs = (float) dt.yrs; day = (float) dt.day;
     hrs = (float) dt.hrs; min = (float) dt.min; sec = (float) dt.sec;
-    float jd = 367.f * yrs - floorf(7.f * (yrs + floorf((min + 9.f) / 12.f)) / 4.f) + \
-        (275.f * min) / 9.f + day + 1721013.5 + hrs / 24.f + min / 1440.f + sec / 86400.f;
+    float jd = 1721013.5 + 367.f * yrs - floorf(7.f * (yrs + floorf((day + 9.f) / 12.f)) / 4.f) + \
+        day + hrs / 24.f + min / 1440.f + sec / 86400.f;
     return jd - 2400000.5;
 }
 
 float Datetime_greenwich_sidereal_time(Datetime dt) {
-    float jc1 = Datetime_to_mjd(dt) / 36525.f;
+    float jc1 = (Datetime_to_mjd(dt) - 51544.5f) / 36525.f;
     float jc2 = jc1 * jc1;
     float jc3 = jc2 * jc1;
     float gst = 100.46061837 + 36000.770053608 * jc1 + 0.000387933 * jc2 - jc3 / 38710000.f;

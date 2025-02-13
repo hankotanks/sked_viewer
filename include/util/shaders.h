@@ -51,10 +51,11 @@ GLuint Shader_get_id(Shader* shader) {
         case SHADER_LOC_PATH:
             const char* source = read_file_contents(shader->inner.path);
             if(source == NULL || source[0] == '\0') {
-                if(shader->type == GL_VERTEX_SHADER) 
+                if(shader->type == GL_VERTEX_SHADER) {
                     LOG_ERROR("Unable to parse vertex shader from source.");
-                if(shader->type == GL_FRAGMENT_SHADER) 
+                } else if(shader->type == GL_FRAGMENT_SHADER) {
                     LOG_ERROR("Unable to parse fragment shader from source.");
+                }
                 return (GLuint) 0;
             }
             id = glCreateShader(shader->type);
@@ -64,10 +65,11 @@ GLuint Shader_get_id(Shader* shader) {
             GLint success;
             glGetShaderiv(id, GL_COMPILE_STATUS, &success);
             if(!success) {
-                if(shader->type == GL_VERTEX_SHADER) 
+                if(shader->type == GL_VERTEX_SHADER) {
                     LOG_ERROR("Failed to compile vertex shader.");
-                if(shader->type == GL_FRAGMENT_SHADER) 
+                } else if(shader->type == GL_FRAGMENT_SHADER) {
                     LOG_ERROR("Failed to compile fragment shader.");
+                }
                 glDeleteShader(id);
                 return (GLuint) 0;
             }
@@ -151,7 +153,9 @@ unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shader* frag
             LOG_ERROR("Fragment shader cannot be empty after skipping vertex shader compilation.");
             glDeleteProgram(*program);
             return 1;
-        } else LOG_INFO("Skipping fragment shader.");
+        } else {
+            LOG_INFO("Skipping fragment shader.");
+        }
     } else {
         frag_id = Shader_get_id(frag);
         if(!frag_id) {
