@@ -1,17 +1,15 @@
-#include "include/util/mjd.h"
 #define LOGGING
-#define USE_POSITION_CATALOG
+// #define DRAW_POSITION_CATLOG
 
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdint.h>
 
-// #include "./include/stations.h"
+#include "./include/globe.h"
+#include "./include/camera.h"
 #include "./include/skd.h"
 #include "./include/stations.h"
 #include "./include/sources.h"
-#include "./include/globe.h"
-#include "./include/camera.h"
 
 #ifndef RGFW_IMPLEMENTATION
 #define RGFW_IMPLEMENTATION
@@ -22,7 +20,7 @@
 #define WINDOW_TITLE "sked_viewer"
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, 800, 600)
 // earth configuration options
-#define GLOBE_LAM_OFFSET 4.78f
+#define GLOBE_LAM_OFFSET 4.94f
 #define GLOBE_CONFIG (GlobeConfig) {\
     .slices = 64,\
     .stacks = 48,\
@@ -75,8 +73,7 @@ int main() {
     failure = GlobePass_init(&globe_pass, globe_pass_desc, GLOBE_CONFIG);
     if(failure) abort();
     // configure SourcePass
-    SourcePassDesc source_pass_desc = (SourcePassDesc) {
-        .globe_radius = GLOBE_CONFIG.globe_radius,
+    SchedPassDesc source_pass_desc = (SchedPassDesc) {
         .color = { 0.f, 1.f, 0.f },
         .shader_vert = &shader_alf_phi,
         .shader_frag = &shader_fill_in,
@@ -84,20 +81,21 @@ int main() {
     SourcePass source_pass;
     failure = SourcePass_build(&source_pass, source_pass_desc, skd);
     if(failure) abort();
+    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, 2.f, source_pass.shader_program);
     // configure StationPass
-    StationPassDesc station_pass_desc = (StationPassDesc) {
-        .globe_radius = GLOBE_CONFIG.globe_radius,
+    SchedPassDesc station_pass_desc = (SchedPassDesc) {
         .color = { 1.f, 0.f, 0.f },
         .shader_vert = &shader_lam_phi,
         .shader_frag = &shader_fill_in,
     };
     StationPass station_pass;
-#ifndef USE_POSITION_CATALOG
+#ifndef DRAW_POSITION_CATLOG
     failure = StationPass_build_from_schedule(&station_pass, station_pass_desc, skd);
 #else
     failure = StationPass_build_from_catalog(&station_pass, station_pass_desc, "./assets/position.cat");
 #endif
     if(failure) abort();
+    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, 1.f, station_pass.shader_program);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {

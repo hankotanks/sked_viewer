@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "./util/log.h"
+#include "./util/shaders.h"
 #include "./util/mjd.h"
 #include "./util/hashmap.h"
 
@@ -50,6 +51,12 @@ typedef struct {
     char source[9];
     char ids[];
 } Obs;
+
+typedef struct {
+    float color[3];
+    Shader* shader_vert;
+    Shader* shader_frag;
+} SchedPassDesc;
 
 typedef struct {
     HashMap stations_ant;
@@ -183,6 +190,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
             source.alf = (float) source.raan_hrs + (float) source.raan_min / 60.f + source.raan_sec / 3600.f;
             source.alf *= 15.f;
             source.phi = (float) source.decl_deg + (float) source.decl_min / 60.f + source.decl_sec / 3600.f;
+            source.phi = 90.f - source.phi; // TODO: Since all sked data has this 90 deg. offset, maybe it should be baked into a function
             if(source.common_name[0] == '$') source.common_name[0] = '\0';
             else HashMap_insert(&(skd->sources_alias), source.common_name, iau);
             HashMap_insert(&(skd->sources), iau, &source);

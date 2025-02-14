@@ -91,43 +91,6 @@ GLuint Shader_get_id(Shader* shader) {
     return id;
 }
 
-/*
-unsigned int compile_shader_from_source(GLuint* shader, GLenum type, const char* source) {
-    *shader = glCreateShader(type);
-    glShaderSource(*shader, 1, &source, NULL);
-    glCompileShader(*shader);
-    GLint success;
-    glGetShaderiv(*shader, GL_COMPILE_STATUS, &success);
-    if(!success) {
-        if(type == GL_VERTEX_SHADER) LOG_ERROR("Failed to compile vertex shader.");
-        if(type == GL_FRAGMENT_SHADER) LOG_ERROR("Failed to compile fragment shader.");
-        glDeleteShader(*shader);
-        return 1;
-    }
-    return 0;
-}
-
-unsigned int compile_shader(GLuint* shader, GLenum type, const char* path) {
-    const char* source = read_file_contents(path);
-    if(source == NULL || source[0] == '\0') {
-        LOG_ERROR("Failed to read shader source.");
-        return 1;
-    }
-    *shader = glCreateShader(type);
-    glShaderSource(*shader, 1, &source, NULL);
-    glCompileShader(*shader);
-    GLint success;
-    glGetShaderiv(*shader, GL_COMPILE_STATUS, &success);
-    free((char*) source);
-    if(!success) {
-        if(type == GL_VERTEX_SHADER) LOG_ERROR("Failed to compile vertex shader.");
-        if(type == GL_FRAGMENT_SHADER) LOG_ERROR("Failed to compile fragment shader.");
-        glDeleteShader(*shader);
-        return 1;
-    }
-    return 0;
-}*/
-
 unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shader* frag) {
     GLuint vert_id, frag_id;
     *program = glCreateProgram();

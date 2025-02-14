@@ -18,13 +18,6 @@ typedef struct {
     size_t vertex_count, index_count;
 } Globe;
 
-#define GLOBE_ERROR (Globe) {\
-    .vertices = NULL,\
-    .indices = NULL,\
-    .vertex_count = 0,\
-    .index_count = 0,\
-}
-
 void Globe_free(Globe mesh) {
     free(mesh.vertices);
     free(mesh.indices);
@@ -35,6 +28,12 @@ typedef struct {
     size_t stacks;
     float globe_radius;
 } GlobeConfig;
+
+void GlobeConfig_set_globe_radius_uniform(GlobeConfig cfg, float mult, GLuint shader_program) {
+    glUseProgram(shader_program);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.globe_radius * mult);
+    glUseProgram(0);
+}
 
 unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
@@ -158,9 +157,9 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassDesc desc, GlobeConfig cfg
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.index_count * sizeof(GLuint), mesh.indices, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
+    // pass the sampler for the earth texture
     glUseProgram(shader_program);
     glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.globe_radius);
-    // pass the sampler for the earth texture
     glActiveTexture(globe_texture_id);
     glUniform1f(glGetUniformLocation(shader_program, "globe_lam_offset"), desc.globe_lam_offset);
     glUniform1i(glGetUniformLocation(shader_program, "globe_sampler"), 0);

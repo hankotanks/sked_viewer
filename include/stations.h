@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "./util/shaders.h"
-
 #include "skd.h"
 #include "camera.h"
 
@@ -34,14 +33,7 @@ void StationPass_update_and_draw(StationPass pass, Camera cam) {
     glDisable(GL_DEPTH_TEST);
 }
 
-typedef struct {
-    float globe_radius;
-    float color[3];
-    Shader* shader_vert;
-    Shader* shader_frag;
-} StationPassDesc;
-
-unsigned int StationPass_configure_buffers(StationPass* pass, StationPassDesc desc) {
+unsigned int StationPass_configure_buffers(StationPass* pass, SchedPassDesc desc) {
     unsigned int failure;
     GLuint shader_program;
     failure = assemble_shader_program(&shader_program, desc.shader_vert, desc.shader_frag);
@@ -60,7 +52,6 @@ unsigned int StationPass_configure_buffers(StationPass* pass, StationPassDesc de
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
     glUseProgram(shader_program);
-    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), desc.globe_radius);
     glUniform3f(glGetUniformLocation(shader_program, "point_color"), desc.color[0], desc.color[1], desc.color[2]);
     glUseProgram(0);
     pass->VAO = VAO;
@@ -69,7 +60,7 @@ unsigned int StationPass_configure_buffers(StationPass* pass, StationPassDesc de
     return 0;
 }
 
-unsigned int StationPass_build_from_schedule(StationPass* pass, StationPassDesc desc, Schedule skd) {
+unsigned int StationPass_build_from_schedule(StationPass* pass, SchedPassDesc desc, Schedule skd) {
     size_t station_count = skd.stations_ant.size;
     pass->ids = (char (*)[2]) malloc(sizeof(*(pass->ids)) * station_count + 1);
     if(pass->ids == NULL) {
@@ -110,7 +101,7 @@ unsigned int StationPass_build_from_schedule(StationPass* pass, StationPassDesc 
     return StationPass_configure_buffers(pass, desc);
 }
 
-unsigned int StationPass_build_from_catalog(StationPass* pass, StationPassDesc desc, const char* path) {
+unsigned int StationPass_build_from_catalog(StationPass* pass, SchedPassDesc desc, const char* path) {
     int failure;
     pass->station_count = 0;
     FILE* stream;

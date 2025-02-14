@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "../sofa.h"
+
 #include "log.h"
 
 typedef struct {
@@ -64,21 +66,28 @@ unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, const cha
     return 0;
 }
 
-float Datetime_to_mjd(Datetime dt) {
-    float yrs, day, hrs, min, sec;
-    yrs = (float) dt.yrs; day = (float) dt.day;
-    hrs = (float) dt.hrs; min = (float) dt.min; sec = (float) dt.sec;
-    float jd = 1721013.5 + 367.f * yrs - floorf(7.f * (yrs + floorf((day + 9.f) / 12.f)) / 4.f) + \
-        day + hrs / 24.f + min / 1440.f + sec / 86400.f;
-    return jd - 2400000.5;
+double Datetime_to_jd(Datetime dt) {
+    double jd1, jd2, jd;
+    iauCal2jd((int) dt.yrs, 1, 1, &jd1, &jd2);
+    jd = jd1 + jd2 + ((double) dt.day) - 1.0;
+    jd += (((double) dt.hrs) / 24.0);
+    jd += (((double) dt.min) / 1440.0);
+    jd += (((double) dt.sec) / 86400.0);
+    return jd;
 }
 
-float Datetime_greenwich_sidereal_time(Datetime dt) {
-    float jc1 = (Datetime_to_mjd(dt) - 51544.5f) / 36525.f;
-    float jc2 = jc1 * jc1;
-    float jc3 = jc2 * jc1;
-    float gst = 100.46061837 + 36000.770053608 * jc1 + 0.000387933 * jc2 - jc3 / 38710000.f;
-    return fmod(gst, 360.f);
+double Datetime_to_mjd(Datetime dt) {
+    return Datetime_to_jd(dt) - 2400000.5;
+}
+
+double Datetime_greenwich_sidereal_time(Datetime dt) {
+    double jd = Datetime_to_jd(dt);
+    double uta = floor(jd);
+    double utb = jd - uta;
+    double jdc = (jd - 2451545.0) / 36525.0;
+    double tta = floor(jdc);
+    double ttb = jdc - tta;
+    return iauGmst06(uta, utb, tta, ttb) * 180.0 / M_PI;
 }
 
 #endif /* MJD_H */
