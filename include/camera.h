@@ -11,29 +11,29 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-#define CAMERA_RAD_SCALAR 4.f
 #define CAMERA_ELE_SCALAR 0.9
 
 typedef struct {
-    float azi;
-    float ele;
-    float rad;
+    float azi, ele, rad;
+    float min, max;
     float aspect;
     GLfloat proj[16];
     GLfloat view[16];
 } Camera;
 
 typedef struct {
+    float scalar;
     float fov;
-    float z_near;
-    float z_far;
+    float z_near, z_far;
 } CameraConfig;
 
-void Camera_init(Camera* cam, float globe_radius) {
+void Camera_init(Camera* cam, CameraConfig cfg, float globe_radius) {
     cam->azi = 0.f;
     cam->ele = 0.f;
-    cam->rad = globe_radius * CAMERA_RAD_SCALAR;
+    cam->rad = globe_radius * (cfg.scalar - 1.f);
     cam->aspect = 1.f;
+    cam->min = globe_radius;
+    cam->max = globe_radius * cfg.scalar;
     for(size_t i = 0; i < 16; ++i) {
         cam->proj[i] = (GLfloat) 0.f;
         cam->view[i] = (GLfloat) 0.f;
@@ -74,37 +74,32 @@ void Camera_perspective(Camera* cam, CameraConfig cfg) {
 }
 
 typedef struct {
-    int initialized;
-    int dragging;
-    int32_t mouse_pos_x;
-    int32_t mouse_pos_y;
+    uint16_t initialized, dragging;
     float sensitivity;
+    int32_t mouse_pos_x, mouse_pos_y;
 } CameraController;
 
 void CameraController_init(CameraController* cont, float sensitivity) {
     cont->sensitivity = sensitivity;
 }
 
-void CameraController_handle_input(CameraController* cont, Camera* cam, float globe_radius, RGFW_window* win) {
+void CameraController_handle_input(CameraController* cont, Camera* cam, RGFW_window* win) {
     switch(win->event.type) {
         case RGFW_mouseButtonPressed:
-            /* if(RGFW_isMousePressed(win, RGFW_mouseLeft)) */ 
             cont->dragging = 1;
-            float rad_vel = globe_radius * sqrtf(cont->sensitivity) * 2.f;
-            float rad_min = globe_radius + rad_vel;
-            float rad_max = globe_radius * (CAMERA_RAD_SCALAR + 1.f);
+            float rad_vel = cam->min * sqrtf(cont->sensitivity) * 2.f;
+            float rad_min = cam->min + rad_vel;
             switch(win->event.button) {
                 case RGFW_mouseScrollUp:
                     cam->rad = MAX(rad_min, cam->rad - rad_vel);
                     break;
                 case RGFW_mouseScrollDown:
-                    cam->rad = MIN(rad_max, cam->rad + rad_vel);
+                    cam->rad = MIN(cam->max, cam->rad + rad_vel);
                     break;
                 default: break;
             }
             break;
         case RGFW_mouseButtonReleased:
-            /* if(RGFW_isMouseReleased(win, RGFW_mouseRight)) */ 
             cont->dragging = 0;
             break;
         case RGFW_mousePosChanged:

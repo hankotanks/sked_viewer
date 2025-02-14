@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "../sofa.h"
+#include "../sofam.h"
 
 #include "log.h"
 

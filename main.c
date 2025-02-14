@@ -20,25 +20,23 @@
 #define WINDOW_TITLE "sked_viewer"
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, 800, 600)
 // earth configuration options
-#define GLOBE_LAM_OFFSET 4.94f
+#define GLOBE_TEX_OFFSET 4.94f
 #define GLOBE_CONFIG (GlobeConfig) {\
     .slices = 64,\
     .stacks = 48,\
     .globe_radius = 100.f,\
 }
 // camera configuration options
-#define CAMERA_CONTROLLER_SENSITIVITY 0.005
+#define CAMERA_SENSITIVITY 0.002
+#define CAMERA_SCALAR 4.f
 #define CAMERA_CONFIG (CameraConfig) {\
+    .scalar = CAMERA_SCALAR,\
     .fov = M_PI_2,\
-    .z_near = 0.1,\
-    .z_far = 1000.f,\
+    .z_near = 1.f,\
+    .z_far = CAMERA_SCALAR * GLOBE_CONFIG.globe_radius * 2.f,\
 }
 
 int main() {
-    Datetime temp = { .yrs = 2025, .day = 1, .hrs = 0, .min = 0, .sec = 0 };
-    Datetime_greenwich_sidereal_time(temp);
-    temp = (Datetime) { .yrs = 2025, .day = 4, .hrs = 0, .min = 0, .sec = 0 };
-    Datetime_greenwich_sidereal_time(temp);
     unsigned int failure;
     // build and validate Schedule
     Schedule skd; // TODO: Still working on the Schedule parsing
@@ -51,9 +49,9 @@ int main() {
     glClearColor(0.f, 0.f, 0.f, 1.f);
     // configure camera and set aspect
     CameraController camera_controller;
-    CameraController_init(&camera_controller, CAMERA_CONTROLLER_SENSITIVITY);
+    CameraController_init(&camera_controller, CAMERA_SENSITIVITY);
     Camera camera;
-    Camera_init(&camera, GLOBE_CONFIG.globe_radius);
+    Camera_init(&camera, CAMERA_CONFIG, GLOBE_CONFIG.globe_radius);
     Camera_set_aspect(&camera, window->r.w, window->r.h);
     Camera_perspective(&camera, CAMERA_CONFIG);
     // set up shaders
@@ -64,7 +62,7 @@ int main() {
     shader_basemap = Shader_init("./shaders/basemap.fs", GL_FRAGMENT_SHADER);
     // configure GlobePass
     GlobePassDesc globe_pass_desc = (GlobePassDesc) {
-        .globe_lam_offset = GLOBE_LAM_OFFSET,
+        .globe_tex_offset = GLOBE_TEX_OFFSET,
         .shader_vert = &shader_lam_phi,
         .shader_frag = &shader_basemap,
         .path_globe_texture = "./assets/globe.bmp",
@@ -81,7 +79,7 @@ int main() {
     SourcePass source_pass;
     failure = SourcePass_build(&source_pass, source_pass_desc, skd);
     if(failure) abort();
-    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, 2.f, source_pass.shader_program);
+    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, CAMERA_CONFIG.scalar, source_pass.shader_program);
     // configure StationPass
     SchedPassDesc station_pass_desc = (SchedPassDesc) {
         .color = { 1.f, 0.f, 0.f },
@@ -112,7 +110,7 @@ int main() {
                 default: break;
             }
             // process user input
-            CameraController_handle_input(&camera_controller, &camera, GLOBE_CONFIG.globe_radius, window);
+            CameraController_handle_input(&camera_controller, &camera, window);
         }
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

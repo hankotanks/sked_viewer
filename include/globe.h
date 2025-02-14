@@ -119,7 +119,7 @@ void GlobePass_update_and_draw(GlobePass pass, Camera cam) {
 }
 
 typedef struct {
-    float globe_lam_offset;
+    float globe_tex_offset;
     Shader* shader_vert;
     Shader* shader_frag;
     const char* path_globe_texture;
@@ -161,8 +161,8 @@ unsigned int GlobePass_init(GlobePass* pass, GlobePassDesc desc, GlobeConfig cfg
     glUseProgram(shader_program);
     glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.globe_radius);
     glActiveTexture(globe_texture_id);
-    glUniform1f(glGetUniformLocation(shader_program, "globe_lam_offset"), desc.globe_lam_offset);
-    glUniform1i(glGetUniformLocation(shader_program, "globe_sampler"), 0);
+    glUniform1f(glGetUniformLocation(shader_program, "globe_tex_offset"), desc.globe_tex_offset);
+    glUniform1i(glGetUniformLocation(shader_program, "globe_tex_sampler"), 0);
     glActiveTexture(0);
     glUseProgram(0);
     BitmapImage_free(globe_texture);
