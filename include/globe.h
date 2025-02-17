@@ -29,12 +29,6 @@ typedef struct {
     float globe_radius;
 } GlobeConfig;
 
-void GlobeConfig_set_globe_radius_uniform(GlobeConfig cfg, float mult, GLuint shader_program) {
-    glUseProgram(shader_program);
-    glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), cfg.globe_radius * mult);
-    glUseProgram(0);
-}
-
 unsigned int Globe_generate(Globe* mesh, GlobeConfig cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
     mesh->vertex_count = cfg.slices * (cfg.stacks - 1) + 2;

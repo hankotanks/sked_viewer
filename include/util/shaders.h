@@ -70,6 +70,11 @@ GLuint Shader_get_id(Shader* shader) {
                 } else if(shader->type == GL_FRAGMENT_SHADER) {
                     LOG_ERROR("Failed to compile fragment shader.");
                 }
+                GLint log_size;
+                glGetShaderiv(id, GL_INFO_LOG_LENGTH, &log_size);
+                char log[log_size];
+                glGetShaderInfoLog(id, log_size, &log_size, log);
+                printf("%s:\n%s\n", shader->inner.path, log);
                 glDeleteShader(id);
                 return (GLuint) 0;
             }

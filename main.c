@@ -8,8 +8,7 @@
 #include "./include/globe.h"
 #include "./include/camera.h"
 #include "./include/skd.h"
-#include "./include/stations.h"
-#include "./include/sources.h"
+#include "./include/skd_pass.h"
 
 #ifndef RGFW_IMPLEMENTATION
 #define RGFW_IMPLEMENTATION
@@ -55,45 +54,33 @@ int main() {
     Camera_set_aspect(&camera, window->r.w, window->r.h);
     Camera_perspective(&camera, CAMERA_CONFIG);
     // set up shaders
-    Shader shader_lam_phi, shader_alf_phi, shader_fill_in, shader_basemap;
-    shader_lam_phi = Shader_init("./shaders/lam_phi.vs", GL_VERTEX_SHADER);
-    shader_alf_phi = Shader_init("./shaders/alf_phi.vs", GL_VERTEX_SHADER);
-    shader_fill_in = Shader_init("./shaders/fill_in.fs", GL_FRAGMENT_SHADER);
-    shader_basemap = Shader_init("./shaders/basemap.fs", GL_FRAGMENT_SHADER);
+    Shader globe_vert, sched_vert, globe_frag, sched_frag;
+    globe_vert = Shader_init("./shaders/globe.vs", GL_VERTEX_SHADER);
+    sched_vert = Shader_init("./shaders/sched.vs", GL_VERTEX_SHADER);
+    globe_frag = Shader_init("./shaders/globe.fs", GL_FRAGMENT_SHADER);
+    sched_frag = Shader_init("./shaders/sched.fs", GL_FRAGMENT_SHADER);
     // configure GlobePass
     GlobePassDesc globe_pass_desc = (GlobePassDesc) {
         .globe_tex_offset = GLOBE_TEX_OFFSET,
-        .shader_vert = &shader_lam_phi,
-        .shader_frag = &shader_basemap,
+        .shader_vert = &globe_vert,
+        .shader_frag = &globe_frag,
         .path_globe_texture = "./assets/globe.bmp",
     };
     GlobePass globe_pass;
     failure = GlobePass_init(&globe_pass, globe_pass_desc, GLOBE_CONFIG);
     if(failure) abort();
-    // configure SourcePass
-    SchedPassDesc source_pass_desc = (SchedPassDesc) {
-        .color = { 0.f, 1.f, 0.f },
-        .shader_vert = &shader_alf_phi,
-        .shader_frag = &shader_fill_in,
+    // configure SchedulePass
+    SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
+        .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
+        .color_src = { (GLfloat) 1.f, (GLfloat) 1.f, (GLfloat) 1.f },
+        .globe_radius = GLOBE_CONFIG.globe_radius,
+        .shell_radius = GLOBE_CONFIG.globe_radius * CAMERA_CONFIG.scalar,
+        .vert = &sched_vert,
+        .frag = &sched_frag,
     };
-    SourcePass source_pass;
-    failure = SourcePass_build(&source_pass, source_pass_desc, skd);
+    SchedulePass skd_pass;
+    failure = SchedulePass_init_from_schedule(&skd_pass, skd_pass_desc, skd);
     if(failure) abort();
-    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, CAMERA_CONFIG.scalar, source_pass.shader_program);
-    // configure StationPass
-    SchedPassDesc station_pass_desc = (SchedPassDesc) {
-        .color = { 1.f, 0.f, 0.f },
-        .shader_vert = &shader_lam_phi,
-        .shader_frag = &shader_fill_in,
-    };
-    StationPass station_pass;
-#ifndef DRAW_POSITION_CATLOG
-    failure = StationPass_build_from_schedule(&station_pass, station_pass_desc, skd);
-#else
-    failure = StationPass_build_from_catalog(&station_pass, station_pass_desc, "./assets/position.cat");
-#endif
-    if(failure) abort();
-    GlobeConfig_set_globe_radius_uniform(GLOBE_CONFIG, 1.f, station_pass.shader_program);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -106,7 +93,8 @@ int main() {
                     break;
                 case RGFW_keyPressed:
                     // see if the current observation was advanced
-                    if(window->event.key == RGFW_space) SourcePass_next(&source_pass, skd);
+                    if(window->event.key == RGFW_space) 
+                        SchedulePass_next_observation(&skd_pass, skd, 1);
                 default: break;
             }
             // process user input
@@ -118,19 +106,18 @@ int main() {
         Camera_update(&camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SourcePass_update_and_draw(source_pass, camera);
-        StationPass_update_and_draw(station_pass, camera);
+        SchedulePass_update_and_draw(skd_pass, camera);
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
     // clean up buffers
     GlobePass_free(globe_pass);
     Schedule_free(skd);
-    StationPass_free(station_pass);
-    SourcePass_free(source_pass);
-    Shader_destroy(&shader_lam_phi);
-    Shader_destroy(&shader_fill_in);
-    Shader_destroy(&shader_basemap);
+    SchedulePass_free(skd_pass);
+    Shader_destroy(&globe_vert);
+    Shader_destroy(&sched_vert);
+    Shader_destroy(&sched_frag);
+    Shader_destroy(&globe_frag);
     // close window
     RGFW_window_close(window);
     return 0;
