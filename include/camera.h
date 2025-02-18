@@ -3,10 +3,8 @@
 
 #include <GL/glew.h>
 #include <math.h>
-
 #include "RGFW.h"
-
-#include "./util/lalg.h"
+#include "util/lalg.h"
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))

@@ -3,7 +3,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
 #include "log.h"
 
 // Adapted from https://stackoverflow.com/a/11793817

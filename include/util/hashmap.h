@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
 #include "log.h"
 
 typedef struct __Node Node;

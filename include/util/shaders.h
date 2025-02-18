@@ -3,7 +3,6 @@
 
 #include <GL/glew.h>
 #include <stdio.h>
-
 #include "log.h"
 #include "fio.h"
 

@@ -1,6 +1,8 @@
 #ifndef LOG_H
 #define LOG_H
 
+#include <stdio.h>
+
 #ifdef LOGGING
 #define LOG_ERROR(msg) fprintf(stderr, "ERROR: %s\n", msg);
 #define LOG_INFO(msg) printf("INFO: %s\n", msg);

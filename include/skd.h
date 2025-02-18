@@ -6,11 +6,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "./util/log.h"
-#include "./util/shaders.h"
-#include "./util/mjd.h"
-#include "./util/hashmap.h"
+#include "util/log.h"
+#include "util/shaders.h"
+#include "util/mjd.h"
+#include "util/hashmap.h"
 
 #define BUCKET_COUNT 10
 

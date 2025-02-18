@@ -2,9 +2,8 @@
 #define SKD_PASS_H
 
 #include <GL/glew.h>
-
-#include "./util/log.h"
-#include "./util/shaders.h"
+#include "util/log.h"
+#include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
 
