@@ -19,7 +19,7 @@
 #define WINDOW_TITLE "sked_viewer"
 #define WINDOW_BOUNDS RGFW_RECT(0, 0, 800, 600)
 // earth configuration options
-#define GLOBE_TEX_OFFSET 4.94f
+#define GLOBE_TEX_OFFSET 0.f
 #define GLOBE_CONFIG (GlobeConfig) {\
     .slices = 64,\
     .stacks = 48,\

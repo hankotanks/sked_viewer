@@ -10,7 +10,7 @@ out vec3 f_lam_phi;
 void main() {
     bool v_type = (abs(v_lam_phi.z) != 0.f);
     float rad = v_type ? shell_radius : globe_radius;
-    float lam = v_type ? radians(gst - v_lam_phi.x) : v_lam_phi.x;
+    float lam = radians(v_type ? (gst - v_lam_phi.x) : (v_lam_phi.x));
     float phi = radians(v_lam_phi.y);
     float x = sin(phi) * cos(lam) * rad;
     float y = cos(phi) * rad;

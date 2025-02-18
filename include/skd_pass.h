@@ -46,8 +46,8 @@ void SchedulePass_next_observation(SchedulePass* pass, Schedule skd, unsigned in
     glUseProgram(pass->shader_program);
     Obs* current = Schedule_get_observation(skd, pass->idx);
     // determine gst offset
-    double gst = Datetime_greenwich_sidereal_time(current->timestamp);
-    glUniform1f(glGetUniformLocation(pass->shader_program, "gst"), (float) gst);
+    float gst = (float) Datetime_greenwich_sidereal_time(current->timestamp);
+    glUniform1f(glGetUniformLocation(pass->shader_program, "gst"), gst);
     // find the current source
     SourceQuasar* src;
     char* id;
@@ -68,7 +68,7 @@ void SchedulePass_next_observation(SchedulePass* pass, Schedule skd, unsigned in
         id = (char*) HashMap_get(skd.stations_ant, key);
         if(debug) printf("%c [%c%c], ", key[0], id[0], id[1]);
         ant = (Station*) HashMap_get(skd.stations_pos, id);
-        vec[i * 6 + 0] = (GLfloat) (ant->lam);
+        vec[i * 6 + 0] = (GLfloat) ant->lam;
         vec[i * 6 + 1] = (GLfloat) ant->phi;
         vec[i * 6 + 2] = (GLfloat) 0.f;
         vec[i * 6 + 3] = (GLfloat) src->alf;
