@@ -19,7 +19,7 @@ typedef struct {
     union { GLuint id; const char* path; } inner;
 } Shader;
 
-Shader Shader_init(const char* path, GLenum type) {
+static Shader Shader_init(const char* path, GLenum type) {
     Shader temp;
     temp.loc = SHADER_LOC_PATH;
     temp.type = type;
@@ -27,7 +27,7 @@ Shader Shader_init(const char* path, GLenum type) {
     return temp;
 }
 
-void Shader_destroy(Shader* shader) {
+static void Shader_destroy(Shader* shader) {
     switch(shader->loc) {
         case SHADER_LOC_ID:
             glDeleteShader(shader->inner.id);
@@ -44,11 +44,12 @@ void Shader_destroy(Shader* shader) {
     }
 }
 
-GLuint Shader_get_id(Shader* shader) {
+static GLuint Shader_get_id(Shader* shader) {
     GLuint id;
+    const char* source;
     switch(shader->loc) {
         case SHADER_LOC_PATH:
-            const char* source = read_file_contents(shader->inner.path);
+            source = read_file_contents(shader->inner.path);
             if(source == NULL || source[0] == '\0') {
                 if(shader->type == GL_VERTEX_SHADER) {
                     LOG_ERROR("Unable to parse vertex shader from source.");
@@ -95,7 +96,7 @@ GLuint Shader_get_id(Shader* shader) {
     return id;
 }
 
-unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shader* frag) {
+static unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shader* frag) {
     GLuint vert_id, frag_id;
     *program = glCreateProgram();
     if(!(*program)) {

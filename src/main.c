@@ -36,8 +36,8 @@
 int main() {
     unsigned int failure;
     // build and validate Schedule
-    Schedule skd; // TODO: Still working on the Schedule parsing
-    Schedule_build_from_source(&skd, "./assets/r41192.skd"); // TODO
+    Schedule skd;
+    Schedule_build_from_source(&skd, "./assets/r41192.skd");
     failure = Schedule_debug_and_validate(skd, 0);
     if(failure) abort();
     // set up window
@@ -45,28 +45,32 @@ int main() {
     glewInit();
     glClearColor(0.f, 0.f, 0.f, 1.f);
     // configure camera and set aspect
-    CameraController camera_controller;
-    CameraController_init(&camera_controller, CAMERA_SENSITIVITY);
-    Camera camera;
-    Camera_init(&camera, CAMERA_CONFIG, GLOBE_CONFIG.globe_radius);
-    Camera_set_aspect(&camera, window->r.w, window->r.h);
-    Camera_perspective(&camera, CAMERA_CONFIG);
+    CameraController* camera_controller = CameraController_init(CAMERA_SENSITIVITY);
+    if(camera_controller == NULL) abort();
+    Camera* camera = Camera_init(CAMERA_CONFIG, GLOBE_CONFIG.globe_radius);
+    if(camera == NULL) abort();
+    Camera_set_aspect(camera, window);
+    Camera_perspective(camera, CAMERA_CONFIG);
     // set up shaders
     Shader globe_vert, sched_vert, globe_frag, sched_frag;
     globe_vert = Shader_init("./shaders/globe.vs", GL_VERTEX_SHADER);
     sched_vert = Shader_init("./shaders/sched.vs", GL_VERTEX_SHADER);
     globe_frag = Shader_init("./shaders/globe.fs", GL_FRAGMENT_SHADER);
     sched_frag = Shader_init("./shaders/sched.fs", GL_FRAGMENT_SHADER);
+    // build Globe mesh
+    const Globe* const globe_mesh = Globe_generate(GLOBE_CONFIG);
+    if(globe_mesh == NULL) abort();
     // configure GlobePass
     GlobePassDesc globe_pass_desc = (GlobePassDesc) {
+        .globe_radius = GLOBE_CONFIG.globe_radius,
         .globe_tex_offset = GLOBE_TEX_OFFSET,
         .shader_vert = &globe_vert,
         .shader_frag = &globe_frag,
         .path_globe_texture = "./assets/globe.bmp",
     };
-    GlobePass globe_pass;
-    failure = GlobePass_init(&globe_pass, globe_pass_desc, GLOBE_CONFIG);
-    if(failure) abort();
+    const GlobePass* const globe_pass = GlobePass_init(globe_pass_desc, globe_mesh);
+    Globe_free(globe_mesh);
+    if(globe_pass == NULL) abort();
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
         .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
@@ -76,9 +80,8 @@ int main() {
         .vert = &sched_vert,
         .frag = &sched_frag,
     };
-    SchedulePass skd_pass;
-    failure = SchedulePass_init_from_schedule(&skd_pass, skd_pass_desc, skd);
-    if(failure) abort();
+    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
+    if(skd_pass == NULL) abort();
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -86,22 +89,22 @@ int main() {
                 case RGFW_windowResized:
                     glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
                     // adjust aspect if window size changed
-                    Camera_set_aspect(&camera, window->r.w, window->r.h);
-                    Camera_perspective(&camera, CAMERA_CONFIG);
+                    Camera_set_aspect(camera, window);
+                    Camera_perspective(camera, CAMERA_CONFIG);
                     break;
                 case RGFW_keyPressed:
                     // see if the current observation was advanced
                     if(window->event.key == RGFW_space) 
-                        SchedulePass_next_observation(&skd_pass, skd, 1);
+                        SchedulePass_next_observation(skd_pass, skd, 1);
                 default: break;
             }
             // process user input
-            CameraController_handle_input(&camera_controller, &camera, window);
+            CameraController_handle_input(camera_controller, camera, window);
         }
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // update camera
-        Camera_update(&camera);
+        Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
         SchedulePass_update_and_draw(skd_pass, camera);
@@ -109,6 +112,8 @@ int main() {
         RGFW_window_swapBuffers(window);
     }
     // clean up buffers
+    Camera_free(camera);
+    CameraController_free(camera_controller);
     GlobePass_free(globe_pass);
     Schedule_free(skd);
     SchedulePass_free(skd_pass);

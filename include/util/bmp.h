@@ -14,11 +14,11 @@ typedef struct {
     unsigned char* data;
 } BitmapImage;
 
-void BitmapImage_free(BitmapImage img) {
+static void BitmapImage_free(BitmapImage img) {
     free(img.data);
 }
 
-void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum tex_unit) {
+static void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum tex_unit) {
     glActiveTexture(tex_unit);
     glGenTextures(1, tex_id);
     glBindTexture(GL_TEXTURE_2D, *tex_id);
@@ -31,7 +31,7 @@ void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum tex_unit)
 }
 
 // Sourced BMP parser from https://www.opengl-tutorial.org/beginners-tutorials/tutorial-5-a-textured-cube/
-int BitmapImage_load_from_file(BitmapImage* img, const char* path) {
+static int BitmapImage_load_from_file(BitmapImage* img, const char* path) {
     FILE* stream = fopen(path, "rb");
     CLOSE_STREAM_ON_FAILURE(stream, stream == NULL, 1, "Failed to open image file.");
     size_t header_size = fread(img->header, 1, 54, stream);
