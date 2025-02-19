@@ -1,14 +1,16 @@
 #include "skd_pass.h"
 #include <GL/glew.h>
 #include "util/log.h"
+#include "util/mjd.h"
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
 
 struct __SKD_PASS_H__SchedulePass {
     GLuint VAO[2], VBO[2], shader_program;
-    ssize_t idx;
-    GLsizei pts_count, ant_count;
+    size_t idx;
+    double jd;
+    GLsizei pts_count;
 };
 
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
@@ -122,9 +124,10 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->VBO[0] = VBO[0];
     pass->VBO[1] = VBO[1];
     pass->shader_program = shader_program;
-    pass->idx = -1;
+    pass->idx = 0;
+    Scan* initial = Schedule_get_scan(skd, pass->idx);
+    pass->jd = Datetime_to_jd(initial->timestamp);
     pass->pts_count = (GLsizei) pts_count;
-    SchedulePass_next_observation(pass, skd, 1);
     return pass;
 }
 
@@ -135,39 +138,14 @@ void SchedulePass_free(const SchedulePass* const pass) {
     free((SchedulePass*) pass);
 }
 
-void SchedulePass_update_and_draw(const SchedulePass* const pass, const Camera* const cam) {
-    Camera_update_uniforms(cam, pass->shader_program);
-    glEnable(GL_DEPTH_TEST);
-    glPointSize(5.f);
-    glUseProgram(pass->shader_program);
-    glBindVertexArray(pass->VAO[0]);    
-    glDrawArrays(GL_POINTS, 0, pass->pts_count);
-    glBindVertexArray(pass->VAO[1]);
-    glDrawArrays(GL_LINES, 0, pass->ant_count * 3);
-    glUseProgram(0);
-    glDisable(GL_DEPTH_TEST);
-}
-
-void SchedulePass_next_observation(SchedulePass* const pass, Schedule skd, unsigned int debug) {
-    if((size_t) (++(pass->idx)) == skd.obs_count) {
-        printf("Wrapping around to beginning of Schedule.\n");
-        pass->idx = 0;
-    }
-    glUseProgram(pass->shader_program);
-    Obs* current = Schedule_get_observation(skd, pass->idx);
-    // determine gst offset
-    float gst = (float) Datetime_greenwich_sidereal_time(current->timestamp);
-    glUniform1f(glGetUniformLocation(pass->shader_program, "gst"), gst);
-    // find the current source
+void render_current_scan(Schedule skd, size_t idx, unsigned int debug) {
+    Scan* current = Schedule_get_scan(skd, idx);
     SourceQuasar* src;
     char* id;
     id = (char*) HashMap_get(skd.sources_alias, current->source);
-    if(debug) printf("%s: ", (id == NULL) ? current->source : id);
     src = (SourceQuasar*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
-    if(src == NULL) {
-        LOG_INFO("Unable to draw observations for the current scan. Unable to find source.");
-        return;
-    }
+    if(src == NULL) return; // TODO: Maybe log info here
+    if(debug) printf("%s [", (id == NULL) ? current->source : id);
     // build observation geometry
     size_t i, ant_count = strlen(current->ids);
     GLfloat vec[ant_count * 6];
@@ -176,7 +154,7 @@ void SchedulePass_next_observation(SchedulePass* const pass, Schedule skd, unsig
     for(i = 0; i < ant_count; ++i) {
         key[0] = current->ids[i];
         id = (char*) HashMap_get(skd.stations_ant, key);
-        if(debug) printf("%c [%c%c], ", key[0], id[0], id[1]);
+        if(debug) printf("%c", key[0]);
         ant = (Station*) HashMap_get(skd.stations_pos, id);
         vec[i * 6 + 0] = (GLfloat) ant->lam;
         vec[i * 6 + 1] = (GLfloat) ant->phi;
@@ -185,11 +163,45 @@ void SchedulePass_next_observation(SchedulePass* const pass, Schedule skd, unsig
         vec[i * 6 + 4] = (GLfloat) src->phi;
         vec[i * 6 + 5] = (GLfloat) 1.f;
     }
-    if(debug) printf("\n");
-    pass->ant_count = ant_count;
-    glBindVertexArray(pass->VAO[1]);
-    glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
+    if(debug) printf("], ");
     size_t buffer_size = ant_count * 6 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vec, GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_LINES, 0, ant_count * 3);
+}
+
+// TODO: This should be configurable
+#define MJD_INC 0.00005
+
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused) {
+    Camera_update_uniforms(cam, pass->shader_program);
+    // set up OpenGL state
+    glEnable(GL_DEPTH_TEST);
+    glPointSize(5.f);
+    glUseProgram(pass->shader_program);
+    double gst = jd2gst(pass->jd); // set greenwich sidereal time
+    glUniform1f(glGetUniformLocation(pass->shader_program, "gst"), (float) gst);
+    glBindVertexArray(pass->VAO[0]);    
+    glDrawArrays(GL_POINTS, 0, pass->pts_count);
+    glBindVertexArray(pass->VAO[1]);  
+    glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
+    // render each set of pointing vectors
+    Datetime end_dt; double end_jd;
+    Scan* curr;
+    if(!paused) printf("%13lf: ", pass->jd);
+    for(size_t i = pass->idx; i < skd.scan_count; ++i) {
+        curr = Schedule_get_scan(skd, i);
+        end_dt = curr->timestamp;
+        end_dt.sec += curr->obs_duration + curr->cal_duration;
+        end_jd = Datetime_to_jd(end_dt);
+        if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
+            render_current_scan(skd, i, !paused); // TODO
+        }
+    }
+    if(!paused) printf("\n");
+    // restore OpenGL state
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
+    glDisable(GL_DEPTH_TEST);
+    if(!paused) pass->jd += MJD_INC;
 }

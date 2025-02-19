@@ -4,7 +4,8 @@ DIR_SRC = src
 DIR_OBJ = build
 DIR_LIB = lib
 
-CFLAGS = -Wall -Wextra -I$(DIR_INC) $(addprefix -I, $(shell find $(DIR_LIB) -type d))
+CFLAGS = -Wall -Wextra $(addprefix -isystem , $(shell find $(DIR_LIB) -type d)) -I$(DIR_INC)
+# $(addprefix -I, $(shell find $(DIR_LIB) -type d))
 LDLIBS = -lm -lGL -lGLEW -lX11 -lXrandr
 LDFLAGS = $(addprefix -L, $(shell find $(DIR_LIB) -type d))
 

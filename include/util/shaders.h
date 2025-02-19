@@ -19,6 +19,7 @@ typedef struct {
     union { GLuint id; const char* path; } inner;
 } Shader;
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static Shader Shader_init(const char* path, GLenum type) {
     Shader temp;
     temp.loc = SHADER_LOC_PATH;
@@ -27,6 +28,7 @@ static Shader Shader_init(const char* path, GLenum type) {
     return temp;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void Shader_destroy(Shader* shader) {
     switch(shader->loc) {
         case SHADER_LOC_ID:
@@ -44,6 +46,7 @@ static void Shader_destroy(Shader* shader) {
     }
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static GLuint Shader_get_id(Shader* shader) {
     GLuint id;
     const char* source;
@@ -96,6 +99,7 @@ static GLuint Shader_get_id(Shader* shader) {
     return id;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shader* frag) {
     GLuint vert_id, frag_id;
     *program = glCreateProgram();

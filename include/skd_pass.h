@@ -20,8 +20,6 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
 // free SchedulePass
 void SchedulePass_free(const SchedulePass* const pass);
 // update relevant uniforms and render
-void SchedulePass_update_and_draw(const SchedulePass* const pass, const Camera* const cam);
-// change to the next observation
-void SchedulePass_next_observation(SchedulePass* const pass, Schedule skd, unsigned int debug);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused);
 
 #endif /* SKD_PASS_H */

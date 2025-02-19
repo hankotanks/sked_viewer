@@ -18,7 +18,8 @@ typedef struct {
 // Every character pair represents a field and the number of digits in the string it occupies.
 // This function is used for compressed dates like 2025311120000 ("y4d3h2m2s2")
 // Fields can be omitted but not repeated
-static unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, const char* line) {
+#pragma GCC diagnostic ignored "-Wunused-function"
+static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, const char* line) {
     char ord[6] = {'\0',}, fmt[16] = {'\0',};
     size_t i, j;
     for(i = 0; i < strlen(format) / 2; ++i) {
@@ -65,6 +66,7 @@ static unsigned int Datetime_parse_from_obs(Datetime* dt, const char* format, co
     return 0;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static double Datetime_to_jd(Datetime dt) {
     double jd1, jd2, jd;
     iauCal2jd((int) dt.yrs, 1, 1, &jd1, &jd2);
@@ -75,10 +77,22 @@ static double Datetime_to_jd(Datetime dt) {
     return jd;
 }
 
-inline double Datetime_to_mjd(Datetime dt) {
+#pragma GCC diagnostic ignored "-Wunused-function"
+static inline double Datetime_to_mjd(Datetime dt) {
     return Datetime_to_jd(dt) - 2400000.5;
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
+static inline double jd2gst(double jd) {
+    double uta = floor(jd);
+    double utb = jd - uta;
+    double jdc = (jd - 2451545.0) / 36525.0;
+    double tta = floor(jdc);
+    double ttb = jdc - tta;
+    return iauGmst06(uta, utb, tta, ttb) * 180.0 / M_PI;
+}
+
+#pragma GCC diagnostic ignored "-Wunused-function"
 static double Datetime_greenwich_sidereal_time(Datetime dt) {
     double jd = Datetime_to_jd(dt);
     double uta = floor(jd);

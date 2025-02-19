@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #define RGFW_IMPLEMENTATION
+#define RGFWDEF
 #include "RGFW.h"
 #undef RGFW_IMPLEMENTATION
 #include "globe.h"
@@ -83,6 +84,7 @@ int main() {
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
     if(skd_pass == NULL) abort();
     // event loop
+    unsigned int paused = 1;
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
             switch(window->event.type) {
@@ -93,9 +95,14 @@ int main() {
                     Camera_perspective(camera, CAMERA_CONFIG);
                     break;
                 case RGFW_keyPressed:
-                    // see if the current observation was advanced
-                    if(window->event.key == RGFW_space) 
-                        SchedulePass_next_observation(skd_pass, skd, 1);
+                    switch(window->event.key) {
+                        case RGFW_space: // see if the current observation was advanced
+                            paused = !paused;
+                            break;
+                        case RGFW_escape:
+                            goto program_exit;
+                        default: break;
+                    }
                 default: break;
             }
             // process user input
@@ -107,10 +114,12 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SchedulePass_update_and_draw(skd_pass, camera);
+        SchedulePass_update_and_draw(skd_pass, skd, camera, paused);
+        // SchedulePass_update_and_draw(skd_pass, camera);
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
+program_exit:
     // clean up buffers
     Camera_free(camera);
     CameraController_free(camera_controller);

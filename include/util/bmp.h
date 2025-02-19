@@ -14,10 +14,12 @@ typedef struct {
     unsigned char* data;
 } BitmapImage;
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void BitmapImage_free(BitmapImage img) {
     free(img.data);
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum tex_unit) {
     glActiveTexture(tex_unit);
     glGenTextures(1, tex_id);
@@ -31,6 +33,7 @@ static void BitmapImage_build_texture(BitmapImage img, GLuint* tex_id, GLenum te
 }
 
 // Sourced BMP parser from https://www.opengl-tutorial.org/beginners-tutorials/tutorial-5-a-textured-cube/
+#pragma GCC diagnostic ignored "-Wunused-function"
 static int BitmapImage_load_from_file(BitmapImage* img, const char* path) {
     FILE* stream = fopen(path, "rb");
     CLOSE_STREAM_ON_FAILURE(stream, stream == NULL, 1, "Failed to open image file.");

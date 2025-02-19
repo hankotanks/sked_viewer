@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <GL/glew.h>
+#define RGFWDEF
 #include "RGFW.h"
 
 // contains the required information to generate proj/view matrices

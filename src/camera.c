@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <GL/glew.h>
+#define RGFWDEF
 #include "RGFW.h"
 #include "util/log.h"
 #include "util/lalg.h"
@@ -83,6 +84,7 @@ unsigned int Camera_update_uniforms(const Camera* const cam, GLuint shader_progr
     }
     glUniformMatrix4fv(loc, 1, GL_FALSE, cam->view);
     glUseProgram(0);
+    return 0;
 }
 
 struct __CAMERA_H__CameraController {

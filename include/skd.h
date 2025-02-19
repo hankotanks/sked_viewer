@@ -1,71 +1,38 @@
 #ifndef SKD_H
 #define SKD_H
 
-// TODO: This file needs a rewrite
-// - consider which structs should be public
-// - check which libraries are actually needed
-
-#include <GL/glew.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "util/log.h"
+#include <stddef.h>
 #include "util/shaders.h"
 #include "util/mjd.h"
 #include "util/hashmap.h"
 
-#define BUCKET_COUNT 10
-
-typedef struct {
-    char name[9];
-    float lam, phi;
-} Station;
-
-void Station_debug(char* id, void* station);
-
-typedef struct {
-    char common_name[9];
-    float alf, phi;
-    uint8_t raan_hrs, raan_min; int8_t decl_deg, decl_min;
-    float raan_sec, decl_sec;
-} SourceQuasar;
-
-void SourceQuasar_debug(char* iau, void* source);
-
+typedef struct { char name[9]; float lam, phi; } Station;
+typedef struct { char name[9]; float alf, phi; } SourceQuasar;
+// Representation of a single scan entry
+// NOTE: It isn't safe to dereference this due to the flexible array member
 typedef struct {
     Datetime timestamp;
     uint16_t cal_duration, obs_duration;
     char source[9];
     char ids[];
-} Obs;
-
-typedef struct {
-    float color[3];
-    Shader* shader_vert;
-    Shader* shader_frag;
-} SchedPassDesc;
-
+} Scan;
+// Schedule data gets further parsed in the SchedulePass
 typedef struct {
     HashMap stations_ant;
     HashMap stations_pos;
     // HashMap sources_sat;
     HashMap sources;
     HashMap sources_alias;
-    size_t obs_count;
-    Obs* obs;
+    size_t scan_count;
+    Scan* scans;
 } Schedule;
-
-Obs* Schedule_get_observation(Schedule skd, size_t i);
-
+// checks for inconsistencies across Schedule's various HashMaps
 unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display);
-
+// required because of the flexible array member
+Scan* Schedule_get_scan(Schedule skd, size_t i);
+// free Schedule
 void Schedule_free(Schedule skd);
-
-long seek_to_section(FILE* stream, const char* header);
-
-void debug_station_antenna_keys(char* key, void* val) ;
-
+// initialize from a skd file
 unsigned int Schedule_build_from_source(Schedule* skd, const char* path);
 
 #endif /* SKD_H */

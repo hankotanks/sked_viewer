@@ -1,30 +1,8 @@
 #include "skd.h"
-
-// TODO: Which imports are actually needed here?
-
-void Station_debug(char* id, void* station) {
-    Station* temp = (Station*) station;
-    printf("%s: %8s [%+7.2f, %+6.2f]\n", id, temp->name, temp->lam, temp->phi);
-}
-
-void SourceQuasar_debug(char* iau, void* source) {
-    SourceQuasar* temp = (SourceQuasar*) source;
-    if(temp->common_name[0] == '\0') {
-        printf("%s: raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f]\n", iau, 
-            temp->raan_hrs, temp->raan_min, temp->raan_sec, 
-            temp->decl_deg, temp->decl_min, temp->decl_sec);
-    } else {
-        printf("%s (%s): raan: [%2u:%2u:%+6.2f] decl: [%+3d:%+3d:%+6.2f]\n", 
-            iau, temp->common_name, 
-            temp->raan_hrs, temp->raan_min, temp->raan_sec, 
-            temp->decl_deg, temp->decl_min, temp->decl_sec);
-    }
-}
-
-Obs* Schedule_get_observation(Schedule skd, size_t i) {
-    if(i >= skd.obs_count) return NULL;
-    return (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
-}
+#include <stddef.h>
+#include <stdio.h>
+#include "util/mjd.h"
+#include "util/hashmap.h"
 
 unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char station_key[2]; station_key[1] = '\0';
@@ -32,11 +10,10 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char* quasar_id;
     Station* station_pos;
     SourceQuasar* quasar;
-    Obs* curr;
+    Scan* curr;
     size_t i, j;
-    for(i = 0; i < skd.obs_count; ++i) {
-        curr = Schedule_get_observation(skd, i);
-        // curr = (Obs*) ((char*) skd.obs + i * (sizeof(Obs) + skd.stations_ant.size + 1));
+    for(i = 0; i < skd.scan_count; ++i) {
+        curr = Schedule_get_scan(skd, i);
         if(display) printf("%8s [%s]: %4hu+%3hu [%2hhu:%2hhu:%2hhu]\n", 
             curr->source, curr->ids, 
             curr->timestamp.yrs, curr->timestamp.day, 
@@ -47,7 +24,13 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
             return 1;
         } else if(display) {
             printf("  ");
-            SourceQuasar_debug(curr->source, (void*) quasar);
+            if(quasar->name[0] == '\0') {
+                printf("%s [%+8.2f, %+8.2f]\n", 
+                    curr->source, quasar->alf, quasar->phi);
+            } else {
+                printf("%s (%s) [%+8.2f, %+8.2f]\n", 
+                    curr->source, quasar->name, quasar->alf, quasar->phi);
+            }
         }
         for(j = 0; j < strlen(curr->ids); ++j) {
             station_key[0] = curr->ids[j];
@@ -60,7 +43,8 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
                     return 1;
                 } else if(display) {
                     printf("  [%c] ", station_key[0]);
-                    Station_debug(station_id, (void*) station_pos);
+                    printf("%s: %8s [%+7.2f, %+6.2f]\n", station_id, 
+                        station_pos->name, station_pos->lam, station_pos->phi);
                 }
             }
         }
@@ -69,12 +53,17 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     return 0;
 }
 
+Scan* Schedule_get_scan(Schedule skd, size_t i) {
+    if(i >= skd.scan_count) return NULL;
+    return (Scan*) ((char*) skd.scans + i * (sizeof(Scan) + skd.stations_ant.size + 1));
+}
+
 void Schedule_free(Schedule skd) {
     HashMap_free(skd.stations_ant);
     HashMap_free(skd.stations_pos);
     HashMap_free(skd.sources);
     HashMap_free(skd.sources_alias);
-    free(skd.obs);
+    free(skd.scans);
 }
 
 long seek_to_section(FILE* stream, const char* header) {
@@ -91,10 +80,7 @@ long seek_to_section(FILE* stream, const char* header) {
     return -1L;
 }
 
-void debug_station_antenna_keys(char* key, void* val) {
-    printf("%s: %s\n", key, (char*) val);
-}
-
+#define BUCKET_COUNT 10 // TODO: Allow this to be configured
 unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     FILE* stream = fopen(path, "rb");
     if(stream == NULL) {
@@ -102,7 +88,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         return 1;
     }
     unsigned int failure;
-    long stations_idx, sources_idx, obs_idx;
+    long stations_idx, sources_idx, scan_idx;
     stations_idx = seek_to_section(stream, "$STATIONS");
     CLOSE_STREAM_ON_FAILURE(stream, stations_idx < 0, 1, "Schedule contains no $STATIONS section.");
     HashMap_init(&(skd->stations_ant), BUCKET_COUNT, 3);
@@ -133,50 +119,51 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     HashMap_init(&(skd->sources_alias), BUCKET_COUNT, 9);
     char iau[9];
     SourceQuasar source;
+    uint8_t raan_hrs, raan_min; int8_t decl_deg, decl_min;
+    float raan_sec, decl_sec;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
         if(line[0] == '$') break;
         ret = sscanf(line, " %8s %8s %hhu %hhu %f %hhd %hhd %f %*f %*f %*s %*s \n",
-            iau, source.common_name,
-            &(source.raan_hrs), &(source.raan_min), &(source.raan_sec), 
-            &(source.decl_deg), &(source.decl_min), &(source.decl_sec));
+            iau, source.name,
+            &raan_hrs, &raan_min, &raan_sec, 
+            &decl_deg, &decl_min, &decl_sec);
         if(ret == 8) {
-            source.alf = (float) source.raan_hrs + (float) source.raan_min / 60.f + source.raan_sec / 3600.f;
+            source.alf = (float) raan_hrs + (float) raan_min / 60.f + raan_sec / 3600.f;
             source.alf *= 15.f;
-            source.phi = (float) source.decl_deg + (float) source.decl_min / 60.f + source.decl_sec / 3600.f;
+            source.phi = (float) decl_deg + (float) decl_min / 60.f + decl_sec / 3600.f;
             source.phi = 90.f - source.phi; // TODO: Since all sked data has this 90 deg. offset, maybe it should be baked into a function
-            if(source.common_name[0] == '$') source.common_name[0] = '\0';
-            else HashMap_insert(&(skd->sources_alias), source.common_name, iau);
+            if(source.name[0] == '$') source.name[0] = '\0';
+            else HashMap_insert(&(skd->sources_alias), source.name, iau);
             HashMap_insert(&(skd->sources), iau, &source);
         }
     }
     free(line);
     line = NULL;
-    obs_idx = seek_to_section(stream, "$SKED");
-    CLOSE_STREAM_ON_FAILURE(stream, obs_idx < 0, 1, "Schedule contains no $SKED section.");
-    skd->obs_count = 0;
+    scan_idx = seek_to_section(stream, "$SKED");
+    CLOSE_STREAM_ON_FAILURE(stream, scan_idx < 0, 1, "Schedule contains no $SKED section.");
+    skd->scan_count = 0;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
         if(line[0] == '$') break;
-        (skd->obs_count)++;
+        (skd->scan_count)++;
     }
     free(line);
     line = NULL;
-    skd->obs = (Obs*) malloc(skd->obs_count * (sizeof(Obs) + skd->stations_ant.size + 1));
+    skd->scans = (Scan*) malloc(skd->scan_count * (sizeof(Scan) + skd->stations_ant.size + 1));
     failure = fseek(stream, 0, SEEK_SET);
     CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
-    obs_idx = seek_to_section(stream, "$SKED");
-    CLOSE_STREAM_ON_FAILURE(stream, obs_idx < 0, 1, "Failed to return to Schedule's $SKED section.");
+    scan_idx = seek_to_section(stream, "$SKED");
+    CLOSE_STREAM_ON_FAILURE(stream, scan_idx < 0, 1, "Failed to return to Schedule's $SKED section.");
     char timestamp_raw[12];
     char cable_wrap[skd->stations_ant.size * 2 + 1];
-    Obs* current;
+    Scan* current;
     size_t i = 0, j;
-    while((line_len = getline(&line, &line_cap, stream)) != -1 && i < skd->obs_count) {
+    while((line_len = getline(&line, &line_cap, stream)) != -1 && i < skd->scan_count) {
         if(line[0] == '$') break;
-        current = Schedule_get_observation(*skd, i);
-        // current = (Obs*) ((char*) skd->obs + i * (sizeof(Obs) + skd->stations_ant.size + 1));
+        current = Schedule_get_scan(*skd, i);
         ret = sscanf(line, " %8s %hu %*c%*c %*s %s %hu %*s %*u %*s %s %*s \n",
             current->source, &(current->cal_duration), timestamp_raw, &(current->obs_duration), cable_wrap);
         if(ret == 5) {
-            failure = Datetime_parse_from_obs(&(current->timestamp), "y2d3h2m2s2", timestamp_raw);
+            failure = Datetime_parse_from_scan(&(current->timestamp), "y2d3h2m2s2", timestamp_raw);
             if(failure) {
                 LOG_INFO("Failed to parse observation Datetime. Skipping.");
                 continue;
@@ -197,7 +184,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         }
     }
     free(line);
-    skd->obs_count = i;
+    skd->scan_count = i;
     fclose(stream);
     return 0;
 }

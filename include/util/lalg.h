@@ -4,10 +4,12 @@
 #include <GL/glew.h>
 #include <math.h>
 
-inline float mag(const GLfloat* const vec) {
+#pragma GCC diagnostic ignored "-Wunused-function"
+static inline float mag(const GLfloat* const vec) {
     return sqrtf((float) (vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2]));
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void normalize(GLfloat* const vec) {
     float length = mag(vec);
     if(length > 0.f) {
@@ -17,16 +19,19 @@ static void normalize(GLfloat* const vec) {
     }
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void cross(GLfloat* const out, const GLfloat* const a, const GLfloat* const b) {
     out[0] = a[1] * b[2] - a[2] * b[1];
     out[1] = a[2] * b[0] - a[0] * b[2];
     out[2] = a[0] * b[1] - a[1] * b[0];
 }
 
-inline float dot(const GLfloat* const a, const GLfloat* const b) {
+#pragma GCC diagnostic ignored "-Wunused-function"
+static inline float dot(const GLfloat* const a, const GLfloat* const b) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void look_at(GLfloat* const view, GLfloat* eye, GLfloat* up) {
     GLfloat f[3], s[3], u[3];
     f[0] = eye[0] * -1.f;

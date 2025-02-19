@@ -7,6 +7,7 @@
 
 // Adapted from https://stackoverflow.com/a/11793817
 // Credit to users Senna and Paul Rooney
+#pragma GCC diagnostic ignored "-Wunused-function"
 static const char* read_file_contents(const char* path) {
     FILE* stream;
     char* contents;
