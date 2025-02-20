@@ -1,10 +1,27 @@
 #include "skd_pass.h"
 #include <GL/glew.h>
+#include <stdio.h>
+#include "RFont.h"
 #include "util/log.h"
 #include "util/mjd.h"
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
+
+static size_t __RENDER_LINE_COUNT = 0;
+#define RENDER_FONT_SIZE 30
+#define RENDER_RESET() \
+    do { \
+        __RENDER_LINE_COUNT = 0; \
+    } while(0)
+#define RENDER_LINE(font, format, ...) \
+    do { \
+        int len = snprintf(NULL, 0, (format), __VA_ARGS__); \
+        if (len < 0) break; \
+        char buf[len + 1]; \
+        snprintf(buf, len + 1, (format), __VA_ARGS__); \
+        RFont_draw_text((font), buf, 0, ((float) (RENDER_FONT_SIZE)) * (__RENDER_LINE_COUNT++), RENDER_FONT_SIZE); \
+    } while(0)
 
 struct __SKD_PASS_H__SchedulePass {
     GLuint VAO[2], VBO[2], shader_program;
@@ -138,14 +155,13 @@ void SchedulePass_free(const SchedulePass* const pass) {
     free((SchedulePass*) pass);
 }
 
-void render_current_scan(Schedule skd, size_t idx, unsigned int debug) {
+unsigned int render_current_scan(Schedule skd, size_t idx) {
     Scan* current = Schedule_get_scan(skd, idx);
     NamedPoint* src;
     char* id;
     id = (char*) HashMap_get(skd.sources_alias, current->source);
     src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
-    if(src == NULL) return; // TODO: Maybe log info here
-    if(debug) printf("%s [", (id == NULL) ? current->source : id);
+    if(src == NULL) return 0;
     // build observation geometry
     size_t i, ant_count = strlen(current->ids);
     GLfloat vec[ant_count * 6];
@@ -154,7 +170,6 @@ void render_current_scan(Schedule skd, size_t idx, unsigned int debug) {
     for(i = 0; i < ant_count; ++i) {
         key[0] = current->ids[i];
         id = (char*) HashMap_get(skd.stations_ant, key);
-        if(debug) printf("%c", key[0]);
         ant = (NamedPoint*) HashMap_get(skd.stations_pos, id);
         vec[i * 6 + 0] = (GLfloat) ant->lam;
         vec[i * 6 + 1] = (GLfloat) ant->phi;
@@ -163,23 +178,26 @@ void render_current_scan(Schedule skd, size_t idx, unsigned int debug) {
         vec[i * 6 + 4] = (GLfloat) src->phi;
         vec[i * 6 + 5] = (GLfloat) 1.f;
     }
-    if(debug) printf("], ");
     size_t buffer_size = ant_count * 6 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vec, GL_DYNAMIC_DRAW);
     glDrawArrays(GL_LINES, 0, ant_count * 3);
+    return 1;
 }
 
 // TODO: This should be configurable
 #define MJD_INC 0.00005
+#define DEBUG_FONT_SIZE 30
 
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused) {
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused, RFont_font* debug_font) {
+    RENDER_RESET();
+    // update camera uniforms
     Camera_update_uniforms(cam, pass->shader_program);
     // set up OpenGL state
     glEnable(GL_DEPTH_TEST);
     glPointSize(5.f);
     glUseProgram(pass->shader_program);
-    double gst = jd2gst(pass->jd); // set greenwich sidereal time
-    glUniform1f(glGetUniformLocation(pass->shader_program, "gst"), (float) gst);
+    double gmst = jd2gmst(pass->jd); // set greenwich sidereal time
+    glUniform1f(glGetUniformLocation(pass->shader_program, "gmst"), (float) gmst);
     glBindVertexArray(pass->VAO[0]);    
     glDrawArrays(GL_POINTS, 0, pass->pts_count);
     glBindVertexArray(pass->VAO[1]);  
@@ -187,21 +205,42 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     // render each set of pointing vectors
     Datetime end_dt; double end_jd;
     Scan* curr;
-    if(!paused) printf("%13lf (%7.3lf): ", pass->jd, gst);
+    size_t active = 1;
     for(size_t i = pass->idx; i < skd.scan_count; ++i) {
         curr = Schedule_get_scan(skd, i);
         end_dt = curr->timestamp;
         end_dt.sec += curr->obs_duration + curr->cal_duration;
         end_jd = Datetime_to_jd(end_dt);
         if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
-            render_current_scan(skd, i, !paused); // TODO
+            active += render_current_scan(skd, i); // TODO
         }
     }
-    if(!paused) printf("\n");
     // restore OpenGL state
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);
+    // display debug information
+    if(!paused && debug_font) {
+        RENDER_LINE(debug_font, "jd: %13lf", pass->jd);
+        RENDER_LINE(debug_font, "gmst: %7.3lf", gmst);
+        Scan* current;
+        NamedPoint* src;
+        char* id;
+        for(size_t i = pass->idx; i < skd.scan_count && active > 0; ++i) {
+            curr = Schedule_get_scan(skd, i);
+            end_dt = curr->timestamp;
+            end_dt.sec += curr->obs_duration + curr->cal_duration;
+            end_jd = Datetime_to_jd(end_dt);
+            if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
+                current = Schedule_get_scan(skd, i);
+                id = (char*) HashMap_get(skd.sources_alias, current->source);
+                src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
+                if(src == NULL) continue;
+                active--;
+                RENDER_LINE(debug_font, "%s [%s]", (id == NULL) ? current->source : id, current->ids);
+            }
+        }
+    }
     if(!paused) pass->jd += MJD_INC;
 }

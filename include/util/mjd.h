@@ -83,24 +83,24 @@ static inline double Datetime_to_mjd(Datetime dt) {
 }
 
 #pragma GCC diagnostic ignored "-Wunused-function"
-static inline double jd2gst(double jd) {
-    double uta = floor(jd);
-    double utb = jd - uta;
-    double jdc = (jd - 2451545.0) / 36525.0;
-    double tta = floor(jdc);
-    double ttb = jdc - tta;
-    return iauGmst06(uta, utb, tta, ttb) * 180.0 / M_PI;
+static inline double jd2gmst(double jd) {
+    // Adapted from https://www.mathworks.com/matlabcentral/fileexchange/28176-julian-date-to-greenwich-mean-sidereal-time
+    // by Darin Koblick
+    double jd0, hrs, min, max;
+    min = floor(jd) - 0.5;
+    max = floor(jd) + 0.5;
+    jd0 = (jd > max) ? max : min;
+    hrs = \
+        (6.697374558) + \
+        (0.06570982441908 * (jd0 - 2451545.0)) + \
+        (1.00273790935 * (jd - jd0) * 24.0) + \
+        (0.000026 * pow((jd - 2451545.0) / 36525.0, 2.0));
+    return fmod(hrs, 24.0) * 15.0;
 }
 
 #pragma GCC diagnostic ignored "-Wunused-function"
-static double Datetime_greenwich_sidereal_time(Datetime dt) {
-    double jd = Datetime_to_jd(dt);
-    double uta = floor(jd);
-    double utb = jd - uta;
-    double jdc = (jd - 2451545.0) / 36525.0;
-    double tta = floor(jdc);
-    double ttb = jdc - tta;
-    return iauGmst06(uta, utb, tta, ttb) * 180.0 / M_PI;
+static inline double Datetime_to_gmst(Datetime dt) {
+    return jd2gmst(Datetime_to_jd(dt));
 }
 
 #endif /* MJD_H */

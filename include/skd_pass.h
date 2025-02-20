@@ -2,6 +2,7 @@
 #define SKD_PASS_H
 
 #include <GL/glew.h>
+#include "RFont.h"
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
@@ -20,6 +21,8 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
 // free SchedulePass
 void SchedulePass_free(const SchedulePass* const pass);
 // update relevant uniforms and render
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused);
+// provide debug == 1 for dumpable debug
+// provide debug == 2 for single line
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused, RFont_font* debug_font);
 
 #endif /* SKD_PASS_H */

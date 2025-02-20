@@ -123,10 +123,8 @@ const GlobePass* GlobePass_init(GlobePassDesc desc, const Globe* const mesh) {
     // pass the sampler for the earth texture
     glUseProgram(shader_program);
     glUniform1f(glGetUniformLocation(shader_program, "globe_radius"), desc.globe_radius);
-    glActiveTexture(globe_texture_id);
     glUniform1f(glGetUniformLocation(shader_program, "globe_tex_offset"), desc.globe_tex_offset);
     glUniform1i(glGetUniformLocation(shader_program, "globe_tex_sampler"), 0);
-    glActiveTexture(0);
     glUseProgram(0);
     BitmapImage_free(globe_texture);
     GlobePass* pass = (GlobePass*) malloc(sizeof(GlobePass));
@@ -162,10 +160,14 @@ void GlobePass_update_and_draw(const GlobePass* const pass, const Camera* const 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glUseProgram(pass->shader_program);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, pass->tex);
     glBindVertexArray(pass->VAO);
     size_t buffer_size;
     buffer_size = pass->index_count * sizeof(GLuint);
     glDrawElements(GL_TRIANGLES, (GLsizei) buffer_size, GL_UNSIGNED_INT, (GLvoid*) 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(0);
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);
 }

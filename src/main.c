@@ -6,6 +6,10 @@
 #define RGFW_IMPLEMENTATION
 #include "RGFW_common.h"
 #undef RGFW_IMPLEMENTATION
+#define RFONT_IMPLEMENTATION
+#define RFONT_DEBUG
+#include "RFont.h"
+#undef RFONT_IMPLEMENTATION
 #include "globe.h"
 #include "camera.h"
 #include "skd.h"
@@ -82,12 +86,17 @@ int main() {
     };
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
     if(skd_pass == NULL) abort();
+    // set up font rendering
+    RFont_init(window->r.w, window->r.h);
+    RFont_font* debug_font = RFont_font_init("./assets/DejaVuSans.ttf");
+    RFont_set_color(1.0f, 0.0f, 0, 1.0f);
     // event loop
     unsigned int paused = 1;
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
             switch(window->event.type) {
                 case RGFW_windowResized:
+                    RFont_update_framebuffer(window->r.w, window->r.h);
                     glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
                     // adjust aspect if window size changed
                     Camera_set_aspect(camera, window);
@@ -113,7 +122,7 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SchedulePass_update_and_draw(skd_pass, skd, camera, paused);
+        SchedulePass_update_and_draw(skd_pass, skd, camera, paused, debug_font);
         // SchedulePass_update_and_draw(skd_pass, camera);
         // conclude pass
         RGFW_window_swapBuffers(window);
@@ -129,6 +138,8 @@ program_exit:
     Shader_destroy(&sched_vert);
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
+    // free font resources
+    RFont_font_free(debug_font);
     // close window
     RGFW_window_close(window);
     return 0;
