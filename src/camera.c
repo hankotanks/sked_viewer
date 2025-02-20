@@ -2,8 +2,7 @@
 #include <stdint.h>
 #include <math.h>
 #include <GL/glew.h>
-#define RGFWDEF
-#include "RGFW.h"
+#include "RGFW_common.h"
 #include "util/log.h"
 #include "util/lalg.h"
 

@@ -8,8 +8,8 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char station_key[2]; station_key[1] = '\0';
     char* station_id;
     char* quasar_id;
-    Station* station_pos;
-    SourceQuasar* quasar;
+    NamedPoint* station_pos;
+    NamedPoint* quasar;
     Scan* curr;
     size_t i, j;
     for(i = 0; i < skd.scan_count; ++i) {
@@ -19,8 +19,8 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
             curr->timestamp.yrs, curr->timestamp.day, 
             curr->timestamp.hrs, curr->timestamp.min, curr->timestamp.sec);
         if((quasar_id = (char*) HashMap_get(skd.sources_alias, curr->source)) == NULL) quasar_id = curr->source;
-        if((quasar = (SourceQuasar*) HashMap_get(skd.sources, quasar_id)) == NULL) {
-            LOG_INFO("IAU source name is missing corresponding SourceQuasar entry in HashMap.");
+        if((quasar = (NamedPoint*) HashMap_get(skd.sources, quasar_id)) == NULL) {
+            LOG_INFO("IAU source name is missing corresponding NamedPoint entry in HashMap.");
             return 1;
         } else if(display) {
             printf("  ");
@@ -38,8 +38,8 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
                 LOG_INFO("Antenna key in observation lacks matching HashMap entry.");
                 return 1;
             } else {
-                if((station_pos = (Station*) HashMap_get(skd.stations_pos, station_id)) == NULL) {
-                    LOG_INFO("2-char station id is missing corresponding Station entry in HashMap.");
+                if((station_pos = (NamedPoint*) HashMap_get(skd.stations_pos, station_id)) == NULL) {
+                    LOG_INFO("2-char station id is missing corresponding NamedPoint entry in HashMap.");
                     return 1;
                 } else if(display) {
                     printf("  [%c] ", station_key[0]);
@@ -92,11 +92,11 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     stations_idx = seek_to_section(stream, "$STATIONS");
     CLOSE_STREAM_ON_FAILURE(stream, stations_idx < 0, 1, "Schedule contains no $STATIONS section.");
     HashMap_init(&(skd->stations_ant), BUCKET_COUNT, 3);
-    HashMap_init(&(skd->stations_pos), 10, sizeof(Station));
+    HashMap_init(&(skd->stations_pos), 10, sizeof(NamedPoint));
     ssize_t line_len; size_t line_cap = 0;
     char key[2], id[3]; 
     char* line = NULL;
-    Station station;
+    NamedPoint station;
     int ret;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {
         // TODO: Why does the following line break the parsing
@@ -115,10 +115,10 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
     sources_idx = seek_to_section(stream, "$SOURCES");
     CLOSE_STREAM_ON_FAILURE(stream, sources_idx < 0, 1, "Schedule contains no $SOURCES section.");
-    HashMap_init(&(skd->sources), BUCKET_COUNT, sizeof(SourceQuasar));
+    HashMap_init(&(skd->sources), BUCKET_COUNT, sizeof(NamedPoint));
     HashMap_init(&(skd->sources_alias), BUCKET_COUNT, 9);
     char iau[9];
-    SourceQuasar source;
+    NamedPoint source;
     uint8_t raan_hrs, raan_min; int8_t decl_deg, decl_min;
     float raan_sec, decl_sec;
     while((line_len = getline(&line, &line_cap, stream)) != -1) {

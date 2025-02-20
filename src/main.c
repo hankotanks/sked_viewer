@@ -4,8 +4,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #define RGFW_IMPLEMENTATION
-#define RGFWDEF
-#include "RGFW.h"
+#include "RGFW_common.h"
 #undef RGFW_IMPLEMENTATION
 #include "globe.h"
 #include "camera.h"

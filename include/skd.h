@@ -6,8 +6,13 @@
 #include "util/mjd.h"
 #include "util/hashmap.h"
 
-typedef struct { char name[9]; float lam, phi; } Station;
-typedef struct { char name[9]; float alf, phi; } SourceQuasar;
+// represents both station's and sources
+// the x-component is an untagged union
+typedef struct {
+    char name[9];
+    union { float lam; float alf; };
+    float phi;
+} NamedPoint;
 // Representation of a single scan entry
 // NOTE: It isn't safe to dereference this due to the flexible array member
 typedef struct {

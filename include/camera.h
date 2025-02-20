@@ -3,8 +3,7 @@
 
 #include <stdint.h>
 #include <GL/glew.h>
-#define RGFWDEF
-#include "RGFW.h"
+#include "RGFW_common.h"
 
 // contains the required information to generate proj/view matrices
 typedef struct __CAMERA_H__Camera Camera;

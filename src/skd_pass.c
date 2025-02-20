@@ -43,12 +43,12 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     GLfloat pts[pts_count * 3];
     Node* node;
     char ant_id[3];
-    Station* ant;
+    NamedPoint* ant;
     for(i = 0, j = 0; i < skd.stations_ant.bucket_count; ++i) {
         node = skd.stations_ant.buckets[i];
         for(; node != NULL; node = node->next, ++j) {
             strcpy(ant_id, (char*) Node_value(node));
-            ant = (Station*) HashMap_get(skd.stations_pos, ant_id);
+            ant = (NamedPoint*) HashMap_get(skd.stations_pos, ant_id);
             if(ant == NULL) {
                 LOG_INFO("Skipping a station while building SchedulePass. Schedule might not have been validated.");
                 pts_count--;
@@ -60,11 +60,11 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
             pts[j * 3 + 2] = (GLfloat) 0.f;
         }
     }
-    SourceQuasar* src;
+    NamedPoint* src;
     for(i = 0; i < skd.sources.bucket_count; ++i) {
         node = skd.sources.buckets[i];
         for(; node != NULL; node = node->next, ++j) {
-            src = (SourceQuasar*) HashMap_get(skd.sources, node->contents);
+            src = (NamedPoint*) HashMap_get(skd.sources, node->contents);
             if(src == NULL) {
                 LOG_INFO("Skipping a quasar source while building SchedulePass. Schedule might not have been validated.");
                 pts_count--;
@@ -140,22 +140,22 @@ void SchedulePass_free(const SchedulePass* const pass) {
 
 void render_current_scan(Schedule skd, size_t idx, unsigned int debug) {
     Scan* current = Schedule_get_scan(skd, idx);
-    SourceQuasar* src;
+    NamedPoint* src;
     char* id;
     id = (char*) HashMap_get(skd.sources_alias, current->source);
-    src = (SourceQuasar*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
+    src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
     if(src == NULL) return; // TODO: Maybe log info here
     if(debug) printf("%s [", (id == NULL) ? current->source : id);
     // build observation geometry
     size_t i, ant_count = strlen(current->ids);
     GLfloat vec[ant_count * 6];
-    Station* ant;
+    NamedPoint* ant;
     char key[2]; key[1] = '\0';
     for(i = 0; i < ant_count; ++i) {
         key[0] = current->ids[i];
         id = (char*) HashMap_get(skd.stations_ant, key);
         if(debug) printf("%c", key[0]);
-        ant = (Station*) HashMap_get(skd.stations_pos, id);
+        ant = (NamedPoint*) HashMap_get(skd.stations_pos, id);
         vec[i * 6 + 0] = (GLfloat) ant->lam;
         vec[i * 6 + 1] = (GLfloat) ant->phi;
         vec[i * 6 + 2] = (GLfloat) 0.f;
@@ -187,7 +187,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     // render each set of pointing vectors
     Datetime end_dt; double end_jd;
     Scan* curr;
-    if(!paused) printf("%13lf: ", pass->jd);
+    if(!paused) printf("%13lf (%7.3lf): ", pass->jd, gst);
     for(size_t i = pass->idx; i < skd.scan_count; ++i) {
         curr = Schedule_get_scan(skd, i);
         end_dt = curr->timestamp;
