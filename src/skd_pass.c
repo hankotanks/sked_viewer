@@ -25,8 +25,9 @@ static size_t __RENDER_LINE_COUNT = 0;
 
 struct __SKD_PASS_H__SchedulePass {
     GLuint VAO[2], VBO[2], shader_program;
+    unsigned int paused, restarted;
+    double jd, jd_inc, jd_max;
     size_t idx;
-    double jd;
     GLsizei pts_count;
 };
 
@@ -141,9 +142,25 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->VBO[0] = VBO[0];
     pass->VBO[1] = VBO[1];
     pass->shader_program = shader_program;
+    pass->paused = 1;
+    pass->restarted = 1;
+    Scan* current = Schedule_get_scan(skd, pass->idx);
+    pass->jd = Datetime_to_jd(current->timestamp);
+    pass->jd_inc = desc.jd_inc;
+    Datetime last_start = current->timestamp, last_final = last_start, temp_final;
+    last_final.sec += current->obs_duration + current->cal_duration;
+    for(size_t i = skd.scan_count - 1; i >= 0; --i) {
+        current = Schedule_get_scan(skd, i);
+        temp_final = current->timestamp;
+        temp_final.sec += current->obs_duration + current->cal_duration;
+        if(Datetime_to_jd(last_final) < Datetime_to_jd(temp_final)) {
+            last_start = current->timestamp;
+            last_final = temp_final;
+        }
+        if(Datetime_to_jd(temp_final) > Datetime_to_jd(last_start)) break;
+    }
+    pass->jd_max = Datetime_to_jd(last_final);
     pass->idx = 0;
-    Scan* initial = Schedule_get_scan(skd, pass->idx);
-    pass->jd = Datetime_to_jd(initial->timestamp);
     pass->pts_count = (GLsizei) pts_count;
     return pass;
 }
@@ -184,12 +201,10 @@ unsigned int render_current_scan(Schedule skd, size_t idx) {
     return 1;
 }
 
-// TODO: This should be configurable
-#define MJD_INC 0.00005
-#define DEBUG_FONT_SIZE 30
-
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused, RFont_font* debug_font) {
+// returns 1 on completed walk through Schedule
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, RFont_font* font) {
     RENDER_RESET();
+    if(pass->restarted && pass->paused) RENDER_LINE(font, "Press [SPACE] to start/pause", NULL);
     // update camera uniforms
     Camera_update_uniforms(cam, pass->shader_program);
     // set up OpenGL state
@@ -200,6 +215,17 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     glUniform1f(glGetUniformLocation(pass->shader_program, "gmst"), (float) gmst);
     glBindVertexArray(pass->VAO[0]);    
     glDrawArrays(GL_POINTS, 0, pass->pts_count);
+    if(pass->jd > pass->jd_max) {
+        glBindVertexArray(0);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        glUseProgram(0);
+        glDisable(GL_DEPTH_TEST);
+        if(font) {
+            RENDER_LINE(font, "Schedule finished at %lf [%zu scans]", pass->jd, skd.scan_count);
+            RENDER_LINE(font, "Press [R] to restart", NULL);
+        }
+        return;
+    }
     glBindVertexArray(pass->VAO[1]);  
     glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
     // render each set of pointing vectors
@@ -221,9 +247,9 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);
     // display debug information
-    if(!paused && debug_font) {
-        RENDER_LINE(debug_font, "jd: %13lf", pass->jd);
-        RENDER_LINE(debug_font, "gmst: %7.3lf", gmst);
+    if(!(pass->paused) && font) {
+        RENDER_LINE(font, "jd: %13lf", pass->jd);
+        RENDER_LINE(font, "gmst: %7.3lf", gmst);
         Scan* current;
         NamedPoint* src;
         char* id;
@@ -238,9 +264,29 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
                 src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
                 if(src == NULL) continue;
                 active--;
-                RENDER_LINE(debug_font, "%s [%s]", (id == NULL) ? current->source : id, current->ids);
+                RENDER_LINE(font, "%s [%s]", (id == NULL) ? current->source : id, current->ids);
             }
         }
     }
-    if(!paused) pass->jd += MJD_INC;
+    if(!(pass->paused)) pass->jd += pass->jd_inc;
+}
+
+void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win) {
+    Scan* current;
+    switch(win->event.type) {
+        case RGFW_keyPressed: switch(win->event.key) {
+            case RGFW_space: // see if the current observation was advanced
+                pass->paused = !(pass->paused);
+                pass->restarted = 0;
+                break;
+            case RGFW_r:
+                pass->idx = 0;
+                current = Schedule_get_scan(skd, pass->idx);
+                pass->jd = Datetime_to_jd(current->timestamp);
+                pass->paused = 1;
+                pass->restarted = 1;
+                break;
+            default: break;
+        }
+    }
 }

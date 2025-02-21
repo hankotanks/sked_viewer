@@ -12,7 +12,7 @@ typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
 // user-facing struct to configure SchedulePass
 typedef struct {
     GLfloat color_ant[3], color_src[3];
-    float globe_radius, shell_radius;
+    float globe_radius, shell_radius, jd_inc;
     Shader* vert;
     Shader* frag;
 } SchedulePassDesc;
@@ -23,6 +23,8 @@ void SchedulePass_free(const SchedulePass* const pass);
 // update relevant uniforms and render
 // provide debug == 1 for dumpable debug
 // provide debug == 2 for single line
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, unsigned int paused, RFont_font* debug_font);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, RFont_font* font);
+// allows pausing/unpausing and resetting
+void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 
 #endif /* SKD_PASS_H */

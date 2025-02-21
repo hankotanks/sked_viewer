@@ -37,6 +37,9 @@
     .z_far = CAMERA_SCALAR * GLOBE_CONFIG.globe_radius * 2.f,\
 }
 
+// SchedulePass configuration options
+#define SKD_PASS_INCREMENT 0.000075
+
 int main() {
     unsigned int failure;
     // build and validate Schedule
@@ -81,6 +84,7 @@ int main() {
         .color_src = { (GLfloat) 1.f, (GLfloat) 1.f, (GLfloat) 1.f },
         .globe_radius = GLOBE_CONFIG.globe_radius,
         .shell_radius = GLOBE_CONFIG.globe_radius * CAMERA_CONFIG.scalar,
+        .jd_inc = SKD_PASS_INCREMENT,
         .vert = &sched_vert,
         .frag = &sched_frag,
     };
@@ -88,10 +92,9 @@ int main() {
     if(skd_pass == NULL) abort();
     // set up font rendering
     RFont_init(window->r.w, window->r.h);
-    RFont_font* debug_font = RFont_font_init("./assets/DejaVuSans.ttf");
+    RFont_font* font = RFont_font_init("./assets/DejaVuSans.ttf");
     RFont_set_color(1.0f, 0.0f, 0, 1.0f);
     // event loop
-    unsigned int paused = 1;
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
             switch(window->event.type) {
@@ -102,19 +105,12 @@ int main() {
                     Camera_set_aspect(camera, window);
                     Camera_perspective(camera, CAMERA_CONFIG);
                     break;
-                case RGFW_keyPressed:
-                    switch(window->event.key) {
-                        case RGFW_space: // see if the current observation was advanced
-                            paused = !paused;
-                            break;
-                        case RGFW_escape:
-                            goto program_exit;
-                        default: break;
-                    }
                 default: break;
             }
             // process user input
             CameraController_handle_input(camera_controller, camera, window);
+            // handle pausing/unpausing and resetting the visualization
+            SchedulePass_handle_input(skd_pass, skd, window);
         }
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -122,12 +118,11 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SchedulePass_update_and_draw(skd_pass, skd, camera, paused, debug_font);
+        SchedulePass_update_and_draw(skd_pass, skd, camera, font);
         // SchedulePass_update_and_draw(skd_pass, camera);
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
-program_exit:
     // clean up buffers
     Camera_free(camera);
     CameraController_free(camera_controller);
@@ -139,7 +134,7 @@ program_exit:
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
     // free font resources
-    RFont_font_free(debug_font);
+    RFont_font_free(font);
     // close window
     RGFW_window_close(window);
     return 0;
