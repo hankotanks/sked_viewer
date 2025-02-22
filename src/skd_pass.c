@@ -1,7 +1,7 @@
 #include "skd_pass.h"
 #include <GL/glew.h>
 #include <stdio.h>
-#include "RFont.h"
+#include "RFont/RFont.h"
 #include "util/log.h"
 #include "util/mjd.h"
 #include "util/shaders.h"

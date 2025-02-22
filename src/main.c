@@ -3,13 +3,8 @@
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdint.h>
-#define RGFW_IMPLEMENTATION
-#include "RGFW_common.h"
-#undef RGFW_IMPLEMENTATION
-#define RFONT_IMPLEMENTATION
-#define RFONT_DEBUG
-#include "RFont.h"
-#undef RFONT_IMPLEMENTATION
+#include "RGFW/RGFW.h"
+#include "RFont/RFont.h"
 #include "globe.h"
 #include "camera.h"
 #include "skd.h"

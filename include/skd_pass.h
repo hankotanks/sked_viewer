@@ -2,7 +2,7 @@
 #define SKD_PASS_H
 
 #include <GL/glew.h>
-#include "RFont.h"
+#include "RFont/RFont.h"
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
