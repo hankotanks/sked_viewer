@@ -198,15 +198,16 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->pts_count = pts_count;
     //
     // find jd_max
-    Scan* current = Schedule_get_scan(skd, 0);
+    ScanFAM* current = Schedule_get_scan(skd, 0);
     pass->jd = Datetime_to_jd(current->timestamp);
-    Datetime last_start = current->timestamp, last_final, temp_final;
-    last_final = Datetime_add_seconds(last_start, current->obs_duration + current->cal_duration);
+    Datetime last_start = current->timestamp;
+    Datetime last_final = Datetime_add_seconds(last_start, current->cal_duration + current->obs_duration);
+    Datetime temp_start, temp_final;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtype-limits"
     for(size_t i = skd.scan_count; (--i) >= 0;) {
         current = Schedule_get_scan(skd, i);
-        temp_final = Datetime_add_seconds(current->timestamp, current->obs_duration + current->cal_duration);
+        temp_final = Datetime_add_seconds(current->timestamp, current->cal_duration + current->obs_duration);
         if(Datetime_to_jd(last_final) < Datetime_to_jd(temp_final)) {
             last_start = current->timestamp;
             last_final = temp_final;
@@ -229,8 +230,9 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     }
     for(size_t i = 0; i < skd.scan_count; ++i) {
         current = Schedule_get_scan(skd, i);
-        pass->events[i * 2 + 0] = (Event) { .idx = i, .jd = Datetime_to_jd(current->timestamp), .type = EVENT_START };
-        temp_final = Datetime_add_seconds(current->timestamp, current->obs_duration + current->cal_duration);
+        temp_start = current->timestamp;
+        pass->events[i * 2 + 0] = (Event) { .idx = i, .jd = Datetime_to_jd(temp_start), .type = EVENT_START };
+        temp_final = Datetime_add_seconds(temp_start, current->obs_duration);
         pass->events[i * 2 + 1] = (Event) { .idx = i, .jd = Datetime_to_jd(temp_final), .type = EVENT_FINAL };
     }
     sort_event_buffer(pass->events, skd.scan_count);
@@ -266,32 +268,33 @@ void SchedulePass_free(const SchedulePass* const pass) {
     free((SchedulePass*) pass);
 }
 
-unsigned int render_current_scan(Schedule skd, size_t idx) {
-    Scan* current = Schedule_get_scan(skd, idx);
+unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[]) {
+    ScanFAM* current = Schedule_get_scan(skd, idx);
     NamedPoint* src;
     char* id;
     id = (char*) HashMap_get(skd.sources_alias, current->source);
     src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
     if(src == NULL) return 0;
     // build observation geometry
-    size_t i, ant_count = strlen(current->ids);
+    size_t i, j, ant_count = strlen(current->ids);
     GLfloat vec[ant_count * 6];
     NamedPoint* ant;
     char key[2]; key[1] = '\0';
-    for(i = 0; i < ant_count; ++i) {
+    for(i = 0, j = 0; i < ant_count; ++i) {
+        if(mask[i] == (unsigned char) 0) continue;
         key[0] = current->ids[i];
         id = (char*) HashMap_get(skd.stations_ant, key);
         ant = (NamedPoint*) HashMap_get(skd.stations_pos, id);
-        vec[i * 6 + 0] = (GLfloat) ant->lam;
-        vec[i * 6 + 1] = (GLfloat) ant->phi;
-        vec[i * 6 + 2] = (GLfloat) 0.f;
-        vec[i * 6 + 3] = (GLfloat) src->alf;
-        vec[i * 6 + 4] = (GLfloat) src->phi;
-        vec[i * 6 + 5] = (GLfloat) 1.f;
+        vec[j++] = (GLfloat) ant->lam;
+        vec[j++] = (GLfloat) ant->phi;
+        vec[j++] = (GLfloat) 0.f;
+        vec[j++] = (GLfloat) src->alf;
+        vec[j++] = (GLfloat) src->phi;
+        vec[j++] = (GLfloat) 1.f;
     }
-    size_t buffer_size = ant_count * 6 * sizeof(GLfloat);
+    size_t buffer_size = j * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vec, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_LINES, 0, ant_count * 3);
+    glDrawArrays(GL_LINES, 0, j / 2);
     return 1;
 }
 
@@ -338,9 +341,17 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
             update_active_scans(pass->active_scans, pass->max_active_scans, current);
         }
     }
-    for(size_t i = 0; i < pass->max_active_scans; ++i) {
+    unsigned char mask[skd.stations_ant.size];
+    ScanFAM* current;
+    Datetime start_with_offset;
+    for(size_t i = 0, j; i < pass->max_active_scans; ++i) {
         if(pass->active_scans[i] == -1) continue;
-        render_current_scan(skd, (size_t) pass->active_scans[i]);
+        current = Schedule_get_scan(skd, pass->active_scans[i]);
+        for(j = 0; j < strlen(current->ids); ++j) {
+            start_with_offset = Datetime_add_seconds(current->timestamp, current->scan_offsets[j]);
+            mask[j] = (pass->jd < Datetime_to_jd(start_with_offset)) ? 1 : 0;
+        }
+        render_current_scan(skd, (size_t) pass->active_scans[i], mask);
     }
     // restore OpenGL state 
     glBindVertexArray(0);
@@ -350,7 +361,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     // write scan targets/participants on screen
     // NOTE: This is placed after the rendering code because it disturbs the opengl state
     if(!(pass->restarted)) {
-        Scan* current;
+        ScanFAM* current;
         NamedPoint* src;
         char* id;
         for(size_t i = 0; i < pass->max_active_scans; ++i) {
@@ -367,7 +378,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
 }
 
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win) {
-    Scan* current;
+    ScanFAM* current;
     switch(win->event.type) {
         case RGFW_keyPressed: switch(win->event.key) {
             case RGFW_space: // see if the current observation was advanced

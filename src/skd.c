@@ -1,6 +1,8 @@
 #include "skd.h"
+#include <X11/Xresource.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <ctype.h>
 #include "util/mjd.h"
 #include "util/hashmap.h"
 
@@ -10,11 +12,11 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char* quasar_id;
     NamedPoint* station_pos;
     NamedPoint* quasar;
-    Scan* curr;
+    ScanFAM* curr;
     size_t i, j;
     for(i = 0; i < skd.scan_count; ++i) {
         curr = Schedule_get_scan(skd, i);
-        if(display) printf("%8s [%s]: %4hu+%3hu [%2hhu:%2hhu:%2hhu]\n", 
+        if(display) printf("%8s [%s]: %4hu+%3hu [%2hhu:%2hhu:%2hu]\n", 
             curr->source, curr->ids, 
             curr->timestamp.yrs, curr->timestamp.day, 
             curr->timestamp.hrs, curr->timestamp.min, curr->timestamp.sec);
@@ -53,9 +55,9 @@ unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     return 0;
 }
 
-Scan* Schedule_get_scan(Schedule skd, size_t i) {
+ScanFAM* Schedule_get_scan(Schedule skd, size_t i) {
     if(i >= skd.scan_count) return NULL;
-    return (Scan*) ((char*) skd.scans + i * (sizeof(Scan) + skd.stations_ant.size + 1));
+    return (ScanFAM*) ((char*) skd.scans + i * (sizeof(ScanFAM) + skd.stations_ant.size + 1));
 }
 
 void Schedule_free(Schedule skd) {
@@ -63,6 +65,11 @@ void Schedule_free(Schedule skd) {
     HashMap_free(skd.stations_pos);
     HashMap_free(skd.sources);
     HashMap_free(skd.sources_alias);
+    ScanFAM* current;
+    for(size_t i = 0; i < skd.scan_count; ++i) {
+        current = Schedule_get_scan(skd, i);
+        free(current->scan_offsets);
+    }
     free(skd.scans);
 }
 
@@ -148,15 +155,16 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     }
     free(line);
     line = NULL;
-    skd->scans = (Scan*) malloc(skd->scan_count * (sizeof(Scan) + skd->stations_ant.size + 1));
+    skd->scans = (ScanFAM*) malloc(skd->scan_count * (sizeof(ScanFAM) + skd->stations_ant.size + 1));
     failure = fseek(stream, 0, SEEK_SET);
     CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
     scan_idx = seek_to_section(stream, "$SKED");
     CLOSE_STREAM_ON_FAILURE(stream, scan_idx < 0, 1, "Failed to return to Schedule's $SKED section.");
     char timestamp_raw[12];
     char cable_wrap[skd->stations_ant.size * 2 + 1];
-    Scan* current;
-    size_t i = 0, j;
+    ScanFAM* current;
+    size_t i = 0, j, k = 0;
+    char* line_offset;
     while((line_len = getline(&line, &line_cap, stream)) != -1 && i < skd->scan_count) {
         if(line[0] == '$') break;
         current = Schedule_get_scan(*skd, i);
@@ -165,7 +173,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
         if(ret == 5) {
             failure = Datetime_parse_from_scan(&(current->timestamp), "y2d3h2m2s2", timestamp_raw);
             if(failure) {
-                LOG_INFO("Failed to parse observation Datetime. Skipping.");
+                LOG_INFO("Failed to parse observation Datetime. Skipping observation.");
                 continue;
             }
             if(strlen(cable_wrap) % 2 != 0) {
@@ -174,6 +182,28 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
             }
             for(j = 0; j < strlen(cable_wrap) / 2; ++j) current->ids[j] = cable_wrap[j * 2];
             current->ids[j + 1] = '\0';
+            current->scan_offsets = (uint16_t*) malloc(strlen(current->ids) * sizeof(uint16_t));
+            if(current->scan_offsets == NULL) {
+                LOG_INFO("Failed to allocate scan duration offsets.");
+            } else {
+                line_offset = &(line[4]);
+                while(line_offset[0] != '\n' || line_offset[0] != '\0') {
+                    // TODO: Messy
+                    if( \
+                        ((line_offset - 4)[0] == 'Y' || (line_offset - 4)[0] == 'N') && \
+                        ((line_offset - 3)[0] == 'Y' || (line_offset - 3)[0] == 'N') && \
+                        ((line_offset - 2)[0] == 'Y' || (line_offset - 2)[0] == 'N') && \
+                        ((line_offset - 1)[0] == 'Y' || (line_offset - 1)[0] == 'N') && 1
+                    ) break;
+                    line_offset += 1;
+                }
+                // the pointer now points to the whitespace after the YYNN sequence
+                while(sscanf(line_offset, " %hu", &(current->scan_offsets[k])) == 1) {
+                    while(isspace(line_offset[0])) line_offset++;
+                    while(isdigit(line_offset[0])) line_offset++;
+                    k++;
+                }; k = 0;
+            }
             if(current->timestamp.yrs < 100) {
                 if(current->timestamp.yrs > 78) current->timestamp.yrs += 1900; // TODO: Look for a better way to handle this
                 else current->timestamp.yrs += 2000;

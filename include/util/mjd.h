@@ -20,7 +20,7 @@ typedef struct {
 // This function is used for compressed dates like 2025311120000 ("y4d3h2m2s2")
 // Fields can be omitted but not repeated
 #pragma GCC diagnostic ignored "-Wunused-function"
-static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, const char* line) {
+static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, const char* line) { // TODO: This needs refinement
     char ord[6] = {'\0',}, fmt[16] = {'\0',};
     size_t i, j;
     for(i = 0; i < strlen(format) / 2; ++i) {

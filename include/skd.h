@@ -19,8 +19,9 @@ typedef struct {
     Datetime timestamp;
     uint16_t cal_duration, obs_duration;
     char source[9];
+    uint16_t* scan_offsets;
     char ids[];
-} Scan;
+} ScanFAM;
 // Schedule data gets further parsed in the SchedulePass
 typedef struct {
     HashMap stations_ant;
@@ -29,12 +30,12 @@ typedef struct {
     HashMap sources;
     HashMap sources_alias;
     size_t scan_count;
-    Scan* scans;
+    ScanFAM* scans;
 } Schedule;
 // checks for inconsistencies across Schedule's various HashMaps
 unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display);
 // required because of the flexible array member
-Scan* Schedule_get_scan(Schedule skd, size_t i);
+ScanFAM* Schedule_get_scan(Schedule skd, size_t i);
 // free Schedule
 void Schedule_free(Schedule skd);
 // initialize from a skd file
