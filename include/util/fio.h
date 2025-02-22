@@ -3,12 +3,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
 #include "log.h"
 
 // Adapted from https://stackoverflow.com/a/11793817
 // Credit to users Senna and Paul Rooney
-const char* read_file_contents(const char* path) {
+#pragma GCC diagnostic ignored "-Wunused-function"
+static const char* read_file_contents(const char* path) {
     FILE* stream;
     char* contents;
     stream = fopen(path, "rb");

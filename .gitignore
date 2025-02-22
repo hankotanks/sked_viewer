@@ -1,1 +1,7 @@
-a.out
+.cache/
+.vscode/
+build/
+lib/**/*.a
+lib/**/*.o
+vis
+compile_commands.json
