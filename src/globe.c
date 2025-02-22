@@ -30,7 +30,7 @@ const Globe* Globe_generate(GlobeConfig cfg) {
         }
     }
     vertices[k_v++] = (GLfloat) M_PI;
-    vertices[k_v++] = (GLfloat) M_PI;
+    vertices[k_v++] = (GLfloat) -M_PI;
     size_t index_count = cfg.slices * 6 * (cfg.stacks - 1);
     GLuint* indices = (GLuint*) malloc(index_count * sizeof(GLuint));
     if(indices == NULL) {

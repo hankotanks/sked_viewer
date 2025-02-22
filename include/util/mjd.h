@@ -11,7 +11,8 @@
 
 typedef struct {
     uint16_t yrs, day;
-    uint8_t hrs, min, sec, __p0;
+    uint8_t hrs, min;
+    uint16_t sec;
 } Datetime;
 
 // Accepts a format string of the form "y2d3h2m2s2"
@@ -32,6 +33,7 @@ static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, c
     }
     unsigned int tmp, val[strlen(ord)];
     int ret;
+    // TODO: It might be possible to just stuff all variadic arguments into sscanf regardless of how many are used
     switch(strlen(ord)) {
         case 0:
             LOG_ERROR("Unable to parse Datetime format string.");
@@ -56,7 +58,7 @@ static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, c
             case 'd': dt->day = (uint16_t) tmp; break;
             case 'h': dt->hrs = (uint8_t) tmp; break;
             case 'm': dt->min = (uint8_t) tmp; break;
-            case 's': dt->sec = (uint8_t) tmp; break;
+            case 's': dt->sec = (uint16_t) tmp; break;
             default:
                 LOG_ERROR("Invalid Datetime component symbol.");
                 return 1;
@@ -64,6 +66,34 @@ static unsigned int Datetime_parse_from_scan(Datetime* dt, const char* format, c
     }
     // printf("%s: %hu %hu %hhu %hhu %hhu\n", line, dt->yrs, dt->day, dt->hrs, dt->min, dt->sec);
     return 0;
+}
+
+#pragma GCC diagnostic ignored "-Wunused-function"
+static Datetime Datetime_add_seconds(Datetime dt, uint16_t secs) {
+    dt.sec += secs;
+    uint16_t days_per_year;
+    while(dt.sec > 60) {
+        dt.sec -= 60;
+        dt.min++;
+        while(dt.min > 60) {
+            dt.min -= 60;
+            dt.hrs++;
+            while(dt.hrs > 24) {
+                dt.hrs -= 24;
+                dt.day++;
+                while(1) {
+                    days_per_year = ((dt.yrs % 4 == 0 && dt.yrs % 100 != 0) || (dt.yrs % 400 == 0)) ? 366 : 365;
+                    if(dt.day > days_per_year) {
+                        dt.day -= days_per_year;
+                        dt.yrs++;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }    
+    return dt;
 }
 
 #pragma GCC diagnostic ignored "-Wunused-function"

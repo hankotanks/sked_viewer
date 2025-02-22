@@ -51,6 +51,8 @@ int main() {
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     glewInit();
     glClearColor(0.f, 0.f, 0.f, 1.f);
+    // set up font rendering
+    RFont_init(window->r.w, window->r.h);
     // configure camera and set aspect
     CameraController* camera_controller = CameraController_init(CAMERA_SENSITIVITY);
     if(camera_controller == NULL) abort();
@@ -87,13 +89,11 @@ int main() {
         .jd_inc = SKD_PASS_INCREMENT,
         .vert = &sched_vert,
         .frag = &sched_frag,
+        .overlay_font_path = "./assets/DejaVuSans.ttf",
+        .overlay_font_color = { 1.f, 0.f, 0.f },
     };
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
     if(skd_pass == NULL) abort();
-    // set up font rendering
-    RFont_init(window->r.w, window->r.h);
-    RFont_font* font = RFont_font_init("./assets/DejaVuSans.ttf");
-    RFont_set_color(1.0f, 0.0f, 0, 1.0f);
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
@@ -118,7 +118,7 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SchedulePass_update_and_draw(skd_pass, skd, camera, font);
+        SchedulePass_update_and_draw(skd_pass, skd, camera, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
         // SchedulePass_update_and_draw(skd_pass, camera);
         // conclude pass
         RGFW_window_swapBuffers(window);
@@ -129,12 +129,11 @@ int main() {
     GlobePass_free(globe_pass);
     Schedule_free(skd);
     SchedulePass_free(skd_pass);
+    // destroy shaders
     Shader_destroy(&globe_vert);
     Shader_destroy(&sched_vert);
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
-    // free font resources
-    RFont_font_free(font);
     // close window
     RGFW_window_close(window);
     return 0;

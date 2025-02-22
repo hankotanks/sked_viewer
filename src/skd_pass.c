@@ -8,8 +8,6 @@
 #include "skd.h"
 #include "camera.h"
 
-#define CHECK_SCAN_RENDERING
-
 static size_t __RENDER_LINE_COUNT = 0;
 #define RENDER_FONT_SIZE 30
 #define RENDER_RESET() \
@@ -25,20 +23,59 @@ static size_t __RENDER_LINE_COUNT = 0;
         RFont_draw_text((font), buf, 0, ((float) (RENDER_FONT_SIZE)) * (__RENDER_LINE_COUNT++), RENDER_FONT_SIZE); \
     } while(0)
 
+typedef enum { EVENT_START, EVENT_FINAL } EventType;
+typedef struct { 
+    size_t idx; 
+    double jd;
+    EventType type;
+} Event;
+
+void sort_event_buffer(Event* const buf, size_t scan_count) {
+    Event temp;
+    for(size_t i = 0, j; i < scan_count * 2 - 1; ++i) {
+        j = i;
+        for(size_t k = i + 1; k < scan_count * 2; ++k) {
+            if(buf[k].jd < buf[j].jd) j = k;
+        }
+        temp = buf[i];
+        buf[i] = buf[j];
+        buf[j] = temp;
+    }
+}
+
 struct __SKD_PASS_H__SchedulePass {
+    RFont_font* overlay_font;
+    float overlay_font_color[3];
     GLuint VAO[2], VBO[2], shader_program;
+    size_t pts_count;
+    double jd, jd_max;
+    size_t event_idx;
+    Event* events;
+    size_t max_active_scans;
+    ssize_t* active_scans;
     unsigned int paused, restarted;
-    size_t idx, pts_count;
-    double jd, jd_inc, jd_max;
-#ifdef CHECK_SCAN_RENDERING
-    unsigned char* scans_rendered;
-#else
-    void* __p0;
-#endif
 };
+
+void update_active_scans(ssize_t* active_scans, size_t count, Event event) {
+    ssize_t fst, snd;
+    fst = (event.type == EVENT_START) ? (ssize_t) event.idx : -1;
+    snd = (event.type == EVENT_START) ? -1 : (ssize_t) event.idx;
+    for(size_t i = 0; i < count; ++i) {
+        if(active_scans[i] == snd) {
+            active_scans[i] = fst;
+            break;
+        }
+    }
+}
 
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
     unsigned int failure;
+    // load font
+    RFont_font* overlay_font = RFont_font_init(desc.overlay_font_path);
+    if(overlay_font == NULL) {
+        LOG_ERROR("Failed to load font file.");
+        return NULL;
+    }
     // configure shader program and set constant uniforms
     GLuint shader_program;
     failure = assemble_shader_program(&shader_program, desc.vert, desc.frag);
@@ -51,6 +88,7 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     loc = glGetUniformLocation(shader_program, "globe_radius");
     if(loc == -1) {
         LOG_ERROR("Shader provided to SchedulePass had no float 'globe_radius' uniform.");
+        RFont_font_free(overlay_font);
         glDeleteProgram(shader_program);
         return NULL;
     }
@@ -58,6 +96,7 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     loc = glGetUniformLocation(shader_program, "shell_radius");
     if(loc == -1) {
         LOG_ERROR("Shader provided to SchedulePass had no float 'shell_radius' uniform.");
+        RFont_font_free(overlay_font);
         glDeleteProgram(shader_program);
         return NULL;
     }
@@ -115,6 +154,7 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     loc = glGetUniformLocation(shader_program, "fst_color");
     if(loc == -1) {
         LOG_ERROR("Shader provided to SchedulePass had no vec3 'fst_color' uniform.");
+        RFont_font_free(overlay_font);
         glDeleteProgram(shader_program);
         return NULL;
     }
@@ -122,15 +162,17 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     loc = glGetUniformLocation(shader_program, "snd_color");
     if(loc == -1) {
         LOG_ERROR("Shader provided to SchedulePass had no vec3 'snd_color' uniform.");
+        RFont_font_free(overlay_font);
         glDeleteProgram(shader_program);
         return NULL;
     }
     glUniform3f(loc, desc.color_src[0], desc.color_src[1], desc.color_src[2]);
     glUseProgram(0);
-    // set up observation buffers
+    //
+    // set up Scan pointer vector buffers
     glBindVertexArray(VAO[1]);
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
-    buffer_size *= 2;
+    buffer_size *= skd.stations_ant.size * 6 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, NULL, GL_DYNAMIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
@@ -138,41 +180,79 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     SchedulePass* pass = (SchedulePass*) malloc(sizeof(SchedulePass));
     if(pass == NULL) {
         LOG_ERROR("Unable to allocate SchedulePass.");
+        RFont_font_free(overlay_font);
         glDeleteProgram(shader_program);
         glDeleteVertexArrays(2, VAO);
         glDeleteBuffers(2, VBO);
         return NULL;
     }
+    pass->overlay_font = overlay_font;
+    pass->overlay_font_color[0] = desc.overlay_font_color[0];
+    pass->overlay_font_color[1] = desc.overlay_font_color[1];
+    pass->overlay_font_color[2] = desc.overlay_font_color[2];
     pass->VAO[0] = VAO[0];
     pass->VAO[1] = VAO[1];
     pass->VBO[0] = VBO[0];
     pass->VBO[1] = VBO[1];
     pass->shader_program = shader_program;
-    pass->paused = 1;
-    pass->restarted = 1;
-    pass->idx = 0;
     pass->pts_count = pts_count;
-    Scan* current = Schedule_get_scan(skd, pass->idx);
+    //
+    // find jd_max
+    Scan* current = Schedule_get_scan(skd, 0);
     pass->jd = Datetime_to_jd(current->timestamp);
-    pass->jd_inc = desc.jd_inc;
-    Datetime last_start = current->timestamp, last_final = last_start, temp_final;
-    last_final.sec += current->obs_duration + current->cal_duration;
-    printf("%zu\n", sizeof(SchedulePass));
+    Datetime last_start = current->timestamp, last_final, temp_final;
+    last_final = Datetime_add_seconds(last_start, current->obs_duration + current->cal_duration);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtype-limits"
     for(size_t i = skd.scan_count; (--i) >= 0;) {
         current = Schedule_get_scan(skd, i);
-        temp_final = current->timestamp;
-        temp_final.sec += current->obs_duration + current->cal_duration;
+        temp_final = Datetime_add_seconds(current->timestamp, current->obs_duration + current->cal_duration);
         if(Datetime_to_jd(last_final) < Datetime_to_jd(temp_final)) {
             last_start = current->timestamp;
             last_final = temp_final;
         }
         if(Datetime_to_jd(temp_final) > Datetime_to_jd(last_start)) break;
     }
+#pragma GCC diagnostic pop
     pass->jd_max = Datetime_to_jd(last_final);
-#ifdef CHECK_SCAN_RENDERING
-    pass->scans_rendered = (unsigned char*) calloc(skd.scan_count, sizeof(unsigned char));
-    if(pass->scans_rendered == NULL) LOG_INFO("Failed to allocate the SchedulePass's debug struct members. Station coverage will not be tracked.");
-#endif
+    //
+    // build and sort Event buffer
+    pass->event_idx = 0;
+    pass->events = (Event*) malloc(skd.scan_count * 2 * sizeof(Event));
+    if(pass->events == NULL) {
+        LOG_ERROR("Unable to allocate Event buffer in SchedulePass.");
+        RFont_font_free(overlay_font);
+        glDeleteProgram(shader_program);
+        glDeleteVertexArrays(2, VAO);
+        glDeleteBuffers(2, VBO);
+        return NULL;
+    }
+    for(size_t i = 0; i < skd.scan_count; ++i) {
+        current = Schedule_get_scan(skd, i);
+        pass->events[i * 2 + 0] = (Event) { .idx = i, .jd = Datetime_to_jd(current->timestamp), .type = EVENT_START };
+        temp_final = Datetime_add_seconds(current->timestamp, current->obs_duration + current->cal_duration);
+        pass->events[i * 2 + 1] = (Event) { .idx = i, .jd = Datetime_to_jd(temp_final), .type = EVENT_FINAL };
+    }
+    sort_event_buffer(pass->events, skd.scan_count);
+    size_t max_active_scans = 0;
+    for(size_t i = 0, j = 0; i < skd.scan_count * 2; ++i) {
+        j = (pass->events[i].type == EVENT_START) ? j + 1 : j - 1;
+        if(j > max_active_scans) max_active_scans = j;
+    }
+    pass->max_active_scans = max_active_scans;
+    pass->active_scans = (ssize_t*) malloc(max_active_scans * sizeof(ssize_t));
+    if(pass->active_scans == NULL) {
+        LOG_ERROR("Failed to allocate active scan buffer in SchedulePass.");
+        RFont_font_free(overlay_font);
+        glDeleteProgram(shader_program);
+        glDeleteVertexArrays(2, VAO);
+        glDeleteBuffers(2, VBO);
+        free(pass->events);
+        return NULL;
+    }
+    for(size_t i = 0; i < max_active_scans; ++i) pass->active_scans[i] = (ssize_t) -1;
+    pass->paused = 1;
+    pass->restarted = 1;
     return pass;
 }
 
@@ -180,9 +260,9 @@ void SchedulePass_free(const SchedulePass* const pass) {
     glDeleteProgram(pass->shader_program);
     glDeleteVertexArrays(2, pass->VAO);
     glDeleteBuffers(2, pass->VBO);
-#ifdef CHECK_SCAN_RENDERING
-    if(pass->scans_rendered) free(pass->scans_rendered);
-#endif
+    RFont_font_free(pass->overlay_font);
+    free(pass->events);
+    free(pass->active_scans);
     free((SchedulePass*) pass);
 }
 
@@ -216,76 +296,74 @@ unsigned int render_current_scan(Schedule skd, size_t idx) {
 }
 
 // returns 1 on completed walk through Schedule
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, RFont_font* font) {
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt) {
     RENDER_RESET();
-    if(pass->restarted && pass->paused) RENDER_LINE(font, "Press [SPACE] to start/pause", NULL);
+    RFont_set_color(pass->overlay_font_color[0], pass->overlay_font_color[1], pass->overlay_font_color[2], 1.f);
+    // get current greenwich sidereal time (degrees)
+    double gmst = jd2gmst(pass->jd);
+    // display pause message
+    if(pass->restarted && pass->paused) {
+        RENDER_LINE(pass->overlay_font, "Press [SPACE] to start/pause%c", '\0');
+    } else if(pass->jd <= pass->jd_max) {
+        RENDER_LINE(pass->overlay_font, "jd: %13lf", pass->jd);
+        RENDER_LINE(pass->overlay_font, "gmst: %7.3lf", gmst);
+    }
     // update camera uniforms
     Camera_update_uniforms(cam, pass->shader_program);
     // set up OpenGL state
     glEnable(GL_DEPTH_TEST);
     glPointSize(5.f);
     glUseProgram(pass->shader_program);
-    double gmst = jd2gmst(pass->jd); // set greenwich sidereal time
     glUniform1f(glGetUniformLocation(pass->shader_program, "gmst"), (float) gmst);
     glBindVertexArray(pass->VAO[0]);    
     glDrawArrays(GL_POINTS, 0, (GLsizei) pass->pts_count);
+    // check if the entire schedule was rendered
     if(pass->jd > pass->jd_max) {
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
-        if(font) {
-            RENDER_LINE(font, "Schedule finished at %lf [%zu scans]", pass->jd, skd.scan_count);
-            RENDER_LINE(font, "Press [R] to restart", NULL);
-        }
+        RENDER_LINE(pass->overlay_font, "Schedule finished at %lf [%zu scans]", pass->jd, skd.scan_count);
+        RENDER_LINE(pass->overlay_font, "Press [R] to restart%c", '\0');
         return;
     }
     glBindVertexArray(pass->VAO[1]);  
     glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
     // render each set of pointing vectors
-    Datetime end_dt; double end_jd;
-    Scan* curr;
-    size_t active = 1;
-    for(size_t i = pass->idx; i < skd.scan_count; ++i) {
-        curr = Schedule_get_scan(skd, i);
-        end_dt = curr->timestamp;
-        end_dt.sec += curr->obs_duration + curr->cal_duration;
-        end_jd = Datetime_to_jd(end_dt);
-        if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
-            active += render_current_scan(skd, i); // TODO
-#ifdef CHECK_SCAN_RENDERING
-            pass->scans_rendered[i]++;
-#endif
+    if(!(pass->paused)) {
+        Event current;
+        for(; pass->event_idx < (skd.scan_count * 2); ++(pass->event_idx)) {
+            current = pass->events[pass->event_idx];
+            if(current.jd > (pass->jd + dt)) break;
+            update_active_scans(pass->active_scans, pass->max_active_scans, current);
         }
     }
-    // restore OpenGL state
+    for(size_t i = 0; i < pass->max_active_scans; ++i) {
+        if(pass->active_scans[i] == -1) continue;
+        render_current_scan(skd, (size_t) pass->active_scans[i]);
+    }
+    // restore OpenGL state 
     glBindVertexArray(0);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);
-    // display debug information
-    if(!(pass->paused) && font) {
-        RENDER_LINE(font, "jd: %13lf", pass->jd);
-        RENDER_LINE(font, "gmst: %7.3lf", gmst);
+    // write scan targets/participants on screen
+    // NOTE: This is placed after the rendering code because it disturbs the opengl state
+    if(!(pass->restarted)) {
         Scan* current;
         NamedPoint* src;
         char* id;
-        for(size_t i = pass->idx; i < skd.scan_count && active > 0; ++i) {
-            curr = Schedule_get_scan(skd, i);
-            end_dt = curr->timestamp;
-            end_dt.sec += curr->obs_duration + curr->cal_duration;
-            end_jd = Datetime_to_jd(end_dt);
-            if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
-                current = Schedule_get_scan(skd, i);
-                id = (char*) HashMap_get(skd.sources_alias, current->source);
-                src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
-                if(src == NULL) continue;
-                active--;
-                RENDER_LINE(font, "%s [%s]", (id == NULL) ? current->source : id, current->ids);
-            }
+        for(size_t i = 0; i < pass->max_active_scans; ++i) {
+            if(pass->active_scans[i] == -1) continue;
+            current = Schedule_get_scan(skd, i);
+            id = (char*) HashMap_get(skd.sources_alias, current->source);
+            src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
+            if(src == NULL) continue;
+            RENDER_LINE(pass->overlay_font, "%s [%s]", (id == NULL) ? current->source : id, current->ids);
         }
     }
-    if(!(pass->paused)) pass->jd += pass->jd_inc;
+    // increment current julian date timestamp
+    if(!(pass->paused)) pass->jd += dt;
 }
 
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win) {
@@ -297,19 +375,12 @@ void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGF
                 pass->restarted = 0;
                 break;
             case RGFW_r:
-                pass->idx = 0;
-                current = Schedule_get_scan(skd, pass->idx);
+                pass->event_idx = 0;
+                for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
+                current = Schedule_get_scan(skd, 0);
                 pass->jd = Datetime_to_jd(current->timestamp);
                 pass->paused = 1;
                 pass->restarted = 1;
-#ifdef CHECK_SCAN_RENDERING
-                size_t rendered_scan_count = 0;
-                for(size_t i = 0; i < skd.scan_count; ++i) {
-                    if(pass->scans_rendered[i]) rendered_scan_count++;
-                    pass->scans_rendered[i] = (unsigned char) 0;
-                }
-                printf("Rendered %zu out of %zu scans.\n", rendered_scan_count, skd.scan_count);
-#endif
                 break;
             default: break;
         }
