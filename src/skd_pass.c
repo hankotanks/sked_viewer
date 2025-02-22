@@ -8,6 +8,8 @@
 #include "skd.h"
 #include "camera.h"
 
+#define CHECK_SCAN_RENDERING
+
 static size_t __RENDER_LINE_COUNT = 0;
 #define RENDER_FONT_SIZE 30
 #define RENDER_RESET() \
@@ -26,9 +28,13 @@ static size_t __RENDER_LINE_COUNT = 0;
 struct __SKD_PASS_H__SchedulePass {
     GLuint VAO[2], VBO[2], shader_program;
     unsigned int paused, restarted;
+    size_t idx, pts_count;
     double jd, jd_inc, jd_max;
-    size_t idx;
-    GLsizei pts_count;
+#ifdef CHECK_SCAN_RENDERING
+    unsigned char* scans_rendered;
+#else
+    void* __p0;
+#endif
 };
 
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
@@ -144,12 +150,15 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->shader_program = shader_program;
     pass->paused = 1;
     pass->restarted = 1;
+    pass->idx = 0;
+    pass->pts_count = pts_count;
     Scan* current = Schedule_get_scan(skd, pass->idx);
     pass->jd = Datetime_to_jd(current->timestamp);
     pass->jd_inc = desc.jd_inc;
     Datetime last_start = current->timestamp, last_final = last_start, temp_final;
     last_final.sec += current->obs_duration + current->cal_duration;
-    for(size_t i = skd.scan_count - 1; i >= 0; --i) {
+    printf("%zu\n", sizeof(SchedulePass));
+    for(size_t i = skd.scan_count; (--i) >= 0;) {
         current = Schedule_get_scan(skd, i);
         temp_final = current->timestamp;
         temp_final.sec += current->obs_duration + current->cal_duration;
@@ -160,8 +169,10 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
         if(Datetime_to_jd(temp_final) > Datetime_to_jd(last_start)) break;
     }
     pass->jd_max = Datetime_to_jd(last_final);
-    pass->idx = 0;
-    pass->pts_count = (GLsizei) pts_count;
+#ifdef CHECK_SCAN_RENDERING
+    pass->scans_rendered = (unsigned char*) calloc(skd.scan_count, sizeof(unsigned char));
+    if(pass->scans_rendered == NULL) LOG_INFO("Failed to allocate the SchedulePass's debug struct members. Station coverage will not be tracked.");
+#endif
     return pass;
 }
 
@@ -169,6 +180,9 @@ void SchedulePass_free(const SchedulePass* const pass) {
     glDeleteProgram(pass->shader_program);
     glDeleteVertexArrays(2, pass->VAO);
     glDeleteBuffers(2, pass->VBO);
+#ifdef CHECK_SCAN_RENDERING
+    if(pass->scans_rendered) free(pass->scans_rendered);
+#endif
     free((SchedulePass*) pass);
 }
 
@@ -214,7 +228,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     double gmst = jd2gmst(pass->jd); // set greenwich sidereal time
     glUniform1f(glGetUniformLocation(pass->shader_program, "gmst"), (float) gmst);
     glBindVertexArray(pass->VAO[0]);    
-    glDrawArrays(GL_POINTS, 0, pass->pts_count);
+    glDrawArrays(GL_POINTS, 0, (GLsizei) pass->pts_count);
     if(pass->jd > pass->jd_max) {
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -239,6 +253,9 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         end_jd = Datetime_to_jd(end_dt);
         if(Datetime_to_jd(curr->timestamp) < pass->jd && end_jd > pass->jd) {
             active += render_current_scan(skd, i); // TODO
+#ifdef CHECK_SCAN_RENDERING
+            pass->scans_rendered[i]++;
+#endif
         }
     }
     // restore OpenGL state
@@ -285,6 +302,14 @@ void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGF
                 pass->jd = Datetime_to_jd(current->timestamp);
                 pass->paused = 1;
                 pass->restarted = 1;
+#ifdef CHECK_SCAN_RENDERING
+                size_t rendered_scan_count = 0;
+                for(size_t i = 0; i < skd.scan_count; ++i) {
+                    if(pass->scans_rendered[i]) rendered_scan_count++;
+                    pass->scans_rendered[i] = (unsigned char) 0;
+                }
+                printf("Rendered %zu out of %zu scans.\n", rendered_scan_count, skd.scan_count);
+#endif
                 break;
             default: break;
         }
