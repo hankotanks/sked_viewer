@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <GL/glew.h>
 #include "RGFW/RGFW.h"
+#include "flags.h"
 
 // contains the required information to generate proj/view matrices
 typedef struct __CAMERA_H__Camera Camera;

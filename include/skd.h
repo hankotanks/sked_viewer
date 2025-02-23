@@ -2,6 +2,7 @@
 #define SKD_H
 
 #include <stddef.h>
+#include "flags.h"
 #include "util/shaders.h"
 #include "util/mjd.h"
 #include "util/hashmap.h"

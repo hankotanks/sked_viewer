@@ -3,10 +3,13 @@
 
 #include <GL/glew.h>
 #include "RFont/RFont.h"
+#include "flags.h"
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
+#ifndef DISABLE_OVERLAY_UI
 #include "ui.h"
+#endif
 
 // contains handles to all schedule related rendering objects
 typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
@@ -16,17 +19,23 @@ typedef struct {
     float globe_radius, shell_radius, jd_inc;
     Shader* vert;
     Shader* frag;
-    const char* overlay_font_path;
-    float overlay_font_color[3];
 } SchedulePassDesc;
 // initialize SchedulePass from a given Schedule
+#ifndef DISABLE_OVERLAY_UI
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* ui);
+#else
+SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd);
+#endif
 // free SchedulePass
 void SchedulePass_free(const SchedulePass* const pass);
 // update relevant uniforms and render
 // provide debug == 1 for dumpable debug
 // provide debug == 2 for single line
+#ifndef DISABLE_OVERLAY_UI
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* ui, double dt);
+#else
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt);
+#endif
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 

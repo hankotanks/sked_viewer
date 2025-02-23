@@ -1,16 +1,17 @@
-#define LOGGING
-
 #include <GL/glew.h>
 #include <stdio.h>
 #include <stdint.h>
 #include "RGFW/RGFW.h"
 #include "RFont/RFont.h"
+#include "flags.h"
+#include "util/shaders.h"
 #include "globe.h"
 #include "camera.h"
 #include "skd.h"
 #include "skd_pass.h"
+#ifndef DISABLE_OVERLAY_UI
 #include "ui.h"
-#include "util/shaders.h"
+#endif
 
 // window configuration options
 #define WINDOW_TITLE "sked_viewer"
@@ -75,6 +76,7 @@ int main() {
     const GlobePass* const globe_pass = GlobePass_init(globe_pass_desc, globe_mesh);
     Globe_free(globe_mesh);
     if(globe_pass == NULL) abort();
+#ifndef DISABLE_OVERLAY_UI
     // configure UI overlay
     OverlayDesc ui_desc = (OverlayDesc) {
         .font_path = "./assets/DejaVuSans.ttf",
@@ -85,6 +87,7 @@ int main() {
     OverlayUI ui;
     failure = OverlayUI_init(&ui, ui_desc, window);
     if(failure) abort();
+#endif
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
         .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
@@ -94,10 +97,12 @@ int main() {
         .jd_inc = SKD_PASS_INCREMENT,
         .vert = &sched_vert,
         .frag = &sched_frag,
-        .overlay_font_path = "./assets/DejaVuSans.ttf",
-        .overlay_font_color = { 1.f, 0.f, 0.f },
     };
+#ifndef DISABLE_OVERLAY_UI
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd, &ui);
+#else
+    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
+#endif
     if(skd_pass == NULL) abort();
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
@@ -109,7 +114,9 @@ int main() {
             // handle pausing/unpausing and resetting the visualization
             SchedulePass_handle_input(skd_pass, skd, window);
             // handle ui overlay events
+#ifndef DISABLE_OVERLAY_UI
             OverlayUI_handle_events(&ui, window);
+#endif
         }
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -117,7 +124,11 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
+#ifndef DISABLE_OVERLAY_UI
         SchedulePass_update_and_draw(skd_pass, skd, camera, &ui, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
+#else
+        SchedulePass_update_and_draw(skd_pass, skd, camera, SKD_PASS_INCREMENT);
+#endif
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
@@ -127,7 +138,9 @@ int main() {
     GlobePass_free(globe_pass);
     Schedule_free(skd);
     SchedulePass_free(skd_pass);
+#ifndef DISABLE_OVERLAY_UI
     OverlayUI_free(ui);
+#endif
     // destroy shaders
     Shader_destroy(&globe_vert);
     Shader_destroy(&sched_vert);

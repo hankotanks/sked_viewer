@@ -4,6 +4,7 @@
 #include <GL/glew.h>
 #include <math.h>
 #include <stddef.h>
+#include "flags.h"
 #include "util/shaders.h"
 #include "camera.h"
 

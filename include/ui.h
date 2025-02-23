@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include "RGFW/RGFW.h"
 #include "RFont/RFont.h"
+#include "flags.h"
 #include "util/shaders.h"
 
 typedef struct __Panel Panel;

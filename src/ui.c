@@ -9,7 +9,6 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 #define PADDING 5
-
 #define PANEL_WIDTH_SCALAR 0.7
 
 inline GLsizei Panel_width(Panel sub, GLint window_width, GLsizei pt) {
@@ -121,7 +120,8 @@ void OverlayUI_handle_events(OverlayUI* ui, RGFW_window* win) {
             data->window_size[0] = (GLint) win->r.w;
             data->window_size[1] = (GLint) win->r.h;
             for(size_t i = 0; i < PANEL_COUNT; ++i) {
-                if(ui->sub[i].line_char_limit == -1) ui->sub[i].y = (GLint) abs((int) (data->pt - data->window_size[1] + PADDING));
+                if(ui->sub[i].line_char_limit == -1) 
+                    ui->sub[i].y = (GLint) abs((int) (data->pt - data->window_size[1] + PADDING));
             }
             break;
         case RGFW_keyPressed:

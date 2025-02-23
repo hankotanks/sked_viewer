@@ -7,7 +7,9 @@
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
+#ifndef DISABLE_OVERLAY_UI
 #include "ui.h"
+#endif
 
 typedef enum { EVENT_START, EVENT_FINAL } EventType;
 typedef struct { 
@@ -51,8 +53,11 @@ void update_active_scans(ssize_t* active_scans, size_t count, Event event) {
         }
     }
 }
-
+#ifndef DISABLE_OVERLAY_UI
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* ui) {
+#else
+SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
+#endif
     unsigned int failure;
     // configure shader program and set constant uniforms
     GLuint shader_program;
@@ -142,7 +147,6 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     }
     glUniform3f(loc, desc.color_src[0], desc.color_src[1], desc.color_src[2]);
     glUseProgram(0);
-    //
     // set up Scan pointer vector buffers
     glBindVertexArray(VAO[1]);
     glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
@@ -165,7 +169,6 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->VBO[1] = VBO[1];
     pass->shader_program = shader_program;
     pass->pts_count = pts_count;
-    //
     // find jd_max
     ScanFAM* current = Schedule_get_scan(skd, 0);
     pass->jd = Datetime_to_jd(current->timestamp);
@@ -185,7 +188,6 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     }
 #pragma GCC diagnostic pop
     pass->jd_max = Datetime_to_jd(last_final);
-    //
     // build and sort Event buffer
     pass->event_idx = 0;
     pass->events = (Event*) malloc(skd.scan_count * 2 * sizeof(Event));
@@ -225,8 +227,10 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     pass->paused = 1;
     pass->restarted = 1;
     // prepare overlay widgets
+#ifndef DISABLE_OVERLAY_UI
     OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, max_active_scans);
     OverlayUI_set_panel_max_lines(ui, PANEL_PARAMS, 2);
+#endif
     return pass;
 }
 
@@ -269,14 +273,19 @@ unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[])
     return 1;
 }
 
+#ifndef DISABLE_OVERLAY_UI
 void format_fixed_length_double(char* buf, size_t buf_size, double val) {
     int int_digits = (val < 1.0) ? 1 : (int) log10(fabs(val)) + 1;
     int precision = ((int) buf_size > int_digits + 2) ? (int) (buf_size - int_digits - 2) : 0;
     snprintf(buf, buf_size, "%.*f", precision, val);
 }
+#endif
 
-// returns 1 on completed walk through Schedule
+#ifdef DISABLE_OVERLAY_UI
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt) {
+#else
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* ui, double dt) {
+#endif
     // get current greenwich sidereal time (degrees)
     double gmst = jd2gmst(pass->jd);
     // update camera uniforms
@@ -289,9 +298,9 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     glBindVertexArray(pass->VAO[0]);    
     glDrawArrays(GL_POINTS, 0, (GLsizei) pass->pts_count);
     // forward declare some shared variables
-    ScanFAM* current;
-    size_t i, j, k;
+    ScanFAM* current; size_t i, j, k;
     // prepare status bar buffer in case schedule is over
+#ifndef DISABLE_OVERLAY_UI
     char* status_out[2];
     status_out[0] = NULL;
     status_out[1] = NULL;
@@ -299,18 +308,21 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         status_out[0] = "Press [SPACE] to toggle the visualization";
         OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
     }
+#endif
     // check if the entire schedule was rendered
     if(pass->jd > pass->jd_max) {
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
+#ifndef DISABLE_OVERLAY_UI
         char status[60];
         status[59] = '\0';
         memcpy(status, "Press [R] to restart. Schedule finished at ", 43);
         format_fixed_length_double(status + 43, 17, pass->jd);
         status_out[0] = status;
         OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
+#endif
     } else {
         glBindVertexArray(pass->VAO[1]);  
         glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
@@ -340,6 +352,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
+#ifndef DISABLE_OVERLAY_UI
         // write scan targets/participants on screen
         // NOTE: This is placed after the rendering code because it disturbs the opengl state
         // populate active scan panel
@@ -356,8 +369,10 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
             active_scans_text[j++] = (id == NULL) ? current->source : id;
         }
         OverlayUI_draw_panel(ui, PANEL_ACTIVE_SCANS, active_scans_text);
+#endif
     }
-    // draw paramater panel
+#ifndef DISABLE_OVERLAY_UI
+    // draw parameter panel
     char params_out_jd[21], params_out_gmst[17];
     memcpy(params_out_jd, "jd: ", 4);
     params_out_jd[20] = '\0';
@@ -370,7 +385,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     params_out[1] = params_out_gmst;
     params_out[2] = NULL;
     OverlayUI_draw_panel(ui, PANEL_PARAMS, params_out);
-    // populate status bar
+#endif
     // increment current julian date timestamp
     if(!(pass->paused) && pass->jd <= pass->jd_max) pass->jd += dt;
 }
