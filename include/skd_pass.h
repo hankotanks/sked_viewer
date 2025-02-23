@@ -6,6 +6,7 @@
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
+#include "ui.h"
 
 // contains handles to all schedule related rendering objects
 typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
@@ -19,13 +20,13 @@ typedef struct {
     float overlay_font_color[3];
 } SchedulePassDesc;
 // initialize SchedulePass from a given Schedule
-SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd);
+SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* ui);
 // free SchedulePass
 void SchedulePass_free(const SchedulePass* const pass);
 // update relevant uniforms and render
 // provide debug == 1 for dumpable debug
 // provide debug == 2 for single line
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* ui, double dt);
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 

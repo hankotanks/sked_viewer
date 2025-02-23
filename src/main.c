@@ -9,6 +9,8 @@
 #include "camera.h"
 #include "skd.h"
 #include "skd_pass.h"
+#include "ui.h"
+#include "util/shaders.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_viewer"
@@ -46,8 +48,6 @@ int main() {
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     glewInit();
     glClearColor(0.f, 0.f, 0.f, 1.f);
-    // set up font rendering
-    RFont_init(window->r.w, window->r.h);
     // configure camera and set aspect
     CameraController* camera_controller = CameraController_init(CAMERA_SENSITIVITY);
     if(camera_controller == NULL) abort();
@@ -75,6 +75,16 @@ int main() {
     const GlobePass* const globe_pass = GlobePass_init(globe_pass_desc, globe_mesh);
     Globe_free(globe_mesh);
     if(globe_pass == NULL) abort();
+    // configure UI overlay
+    OverlayDesc ui_desc = (OverlayDesc) {
+        .font_path = "./assets/DejaVuSans.ttf",
+        .font_size = 20,
+        .text_color = { 0.f, 0.f, 0.f },
+        .panel_color = { 0.6, 0.2, 0.2 },
+    };
+    OverlayUI ui;
+    failure = OverlayUI_init(&ui, ui_desc, window);
+    if(failure) abort();
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
         .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
@@ -87,25 +97,19 @@ int main() {
         .overlay_font_path = "./assets/DejaVuSans.ttf",
         .overlay_font_color = { 1.f, 0.f, 0.f },
     };
-    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
+    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd, &ui);
     if(skd_pass == NULL) abort();
     // event loop
     while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while (RGFW_window_checkEvent(window)) {
-            switch(window->event.type) {
-                case RGFW_windowResized:
-                    RFont_update_framebuffer(window->r.w, window->r.h);
-                    glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
-                    // adjust aspect if window size changed
-                    Camera_set_aspect(camera, window);
-                    Camera_perspective(camera, CAMERA_CONFIG);
-                    break;
-                default: break;
-            }
+            if(window->event.type == RGFW_windowResized) glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
             // process user input
+            Camera_handle_events(camera, CAMERA_CONFIG, window);
             CameraController_handle_input(camera_controller, camera, window);
             // handle pausing/unpausing and resetting the visualization
             SchedulePass_handle_input(skd_pass, skd, window);
+            // handle ui overlay events
+            OverlayUI_handle_events(&ui, window);
         }
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -113,8 +117,7 @@ int main() {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-        SchedulePass_update_and_draw(skd_pass, skd, camera, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
-        // SchedulePass_update_and_draw(skd_pass, camera);
+        SchedulePass_update_and_draw(skd_pass, skd, camera, &ui, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
         // conclude pass
         RGFW_window_swapBuffers(window);
     }
@@ -124,6 +127,7 @@ int main() {
     GlobePass_free(globe_pass);
     Schedule_free(skd);
     SchedulePass_free(skd_pass);
+    OverlayUI_free(ui);
     // destroy shaders
     Shader_destroy(&globe_vert);
     Shader_destroy(&sched_vert);

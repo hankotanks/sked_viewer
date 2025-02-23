@@ -348,6 +348,7 @@ SOFA_OBS = iauA2af.o \
 
 # Build (but do not install) the library.
 all : $(SOFA_LIB_NAME)
+	@echo $(SOFA_LIB_NAME)
 
 # Install the library and header files.
 install $(SOFA_LIB) : $(INSTALL_DIRS) $(SOFA_LIB_NAME) $(SOFA_INC)
@@ -384,7 +385,6 @@ $(INSTALL_DIRS):
 # Build the library.
 $(SOFA_LIB_NAME): $(SOFA_OBS)
 	ar ru $(SOFA_LIB_NAME) $? 2>/dev/null
-	@echo $(SOFA_LIB_NAME)
 
 # Install the header files.
 $(SOFA_INC) : $(INSTALL_DIRS) $(SOFA_INC_NAMES)

@@ -167,6 +167,7 @@ void GlobePass_update_and_draw(const GlobePass* const pass, const Camera* const 
     buffer_size = pass->index_count * sizeof(GLuint);
     glDrawElements(GL_TRIANGLES, (GLsizei) buffer_size, GL_UNSIGNED_INT, (GLvoid*) 0);
     glBindTexture(GL_TEXTURE_2D, 0);
+    glBindVertexArray(0);
     glActiveTexture(0);
     glUseProgram(0);
     glDisable(GL_DEPTH_TEST);

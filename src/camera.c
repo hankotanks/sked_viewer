@@ -67,6 +67,13 @@ void Camera_perspective(Camera* const cam, CameraConfig cfg) {
     cam->proj[14] = (GLfloat) ((2.f * cfg.z_far * cfg.z_near) / (cfg.z_far - cfg.z_near) * -1.f); 
 }
 
+void Camera_handle_events(Camera* const cam, CameraConfig cfg, const RGFW_window* const win) {
+    if(win->event.type == RGFW_windowResized) {
+        Camera_set_aspect(cam, win);
+        Camera_perspective(cam, cfg);
+    }
+}
+
 unsigned int Camera_update_uniforms(const Camera* const cam, GLuint shader_program) {
     GLint loc;
     glUseProgram(shader_program);

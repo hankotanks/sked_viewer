@@ -22,6 +22,9 @@ void Camera_update(Camera* const cam);
 // both functions should be called on window resize
 void Camera_set_aspect(Camera* const cam, const RGFW_window* const win);
 void Camera_perspective(Camera* const cam, CameraConfig cfg);
+// Camera_handle_events is responsible for invoking 
+// Camera_set_aspect and Camera_perspective
+void Camera_handle_events(Camera* const cam, CameraConfig cfg, const RGFW_window* const win);
 // update proj and view mat4 uniforms in given shader program
 unsigned int Camera_update_uniforms(const Camera* const cam, GLuint shader_program);
 // handles control of
