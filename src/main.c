@@ -47,6 +47,7 @@ int main() {
     if(failure) abort();
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
+    RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
     glewInit();
     glClearColor(0.f, 0.f, 0.f, 1.f);
     // configure camera and set aspect

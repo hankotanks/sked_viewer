@@ -2,6 +2,7 @@
 
 #include <GL/glew.h>
 #include <string.h>
+#include "util/fio.h"
 #include "util/shaders.h"
 #include "util/log.h"
 
@@ -9,7 +10,6 @@
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
 #define PADDING 5
-#define PANEL_WIDTH_SCALAR 0.7
 
 typedef struct {
     RFont_font* font;
@@ -26,19 +26,25 @@ struct __UI_H__Panel {
     ssize_t line_char_limit;
 };
 
-inline GLsizei Panel_width(Panel sub, size_t window_width, size_t pt) {
-    if(sub.line_char_limit == -1) return (GLsizei) window_width;
-    float full = (float) sub.line_char_limit * (float) pt;
-    return (GLsizei) (full * PANEL_WIDTH_SCALAR);
+inline GLsizei Panel_width(Panel sub, OverlayData data) {
+    if(sub.line_char_limit == -1) {
+        return (GLsizei) data.window_size[0];
+    } else {
+        char temp[(size_t) sub.line_char_limit + 1];
+        temp[(size_t) sub.line_char_limit] = '\0';
+        for(size_t i = 0; i < (size_t) sub.line_char_limit; i++) temp[i] = 'M';
+        RFont_area bounds = RFont_text_area(data.font, temp, (u32) data.font_size);
+        return (GLsizei) bounds.w;
+    }
 }
 
-inline GLsizei Panel_height(Panel sub, size_t pt) {
-    return (GLsizei) (sub.max_lines * (pt + PADDING));
+inline GLsizei Panel_height(Panel sub, OverlayData data) {
+    return (GLsizei) (sub.max_lines * (data.font_size + PADDING));
 }
 
 void Panel_finish(Panel* sub, OverlayData data) {
     if(sub->prev) {
-        GLsizei w = Panel_width(*(sub->prev), data.window_size[0], data.font_size);
+        GLsizei w = Panel_width(*(sub->prev), data);
         sub->x = w + PADDING * 2;
     } else if(sub->line_char_limit != -1) {
         sub->x = PADDING;
@@ -68,8 +74,8 @@ Panel Panel_bottom_banner(OverlayData data) {
 // assumes program has been set by OverlayUI
 void Panel_draw(Panel sub, OverlayData data) {
     GLsizei w, h;
-    w = Panel_width(sub, data.window_size[0], data.font_size);
-    h = Panel_height(sub, data.font_size);
+    w = Panel_width(sub, data);
+    h = Panel_height(sub, data);
     GLint x, y;
     x = sub.x;
     y = (GLint) data.window_size[1] - sub.y - h;
@@ -95,6 +101,7 @@ void Panel_add_line(Panel* sub, OverlayData data, const char* text) {
 #define FONT_SIZE_MULT 2
 
 struct __UI_H__OverlayUI {
+    const char* font_bytes;
     OverlayData data;
     float text_color[3], panel_color[3];
     Panel sub[PANEL_COUNT];
@@ -109,21 +116,23 @@ OverlayUI* OverlayUI_init(OverlayDesc desc, RGFW_window* win) {
         return NULL;
     }
     RFont_init((size_t) win->r.w, (size_t) win->r.h);
-    // compile font
-    data.font = RFont_font_init(desc.font_path);
-    if(data.font == NULL) {
-        LOG_ERROR("Unable to compile front for OverlayUI.");
-        return NULL;
-    }
-    data.font_size = desc.font_size;
-    data.window_size[0] = (size_t) win->r.w;
-    data.window_size[1] = (size_t) win->r.h;
     // initialize OverlayUI object
     OverlayUI* ui = (OverlayUI*) malloc(sizeof(OverlayUI));
     if(ui == NULL) {
         LOG_ERROR("Unable to allocate space for OverlayUI.");
         return NULL;
     }
+    ui->font_bytes = read_file_contents(desc.font_path);
+    // compile font
+    data.font = RFont_font_init_data((b8*) ui->font_bytes, 0);
+    if(data.font == NULL) {
+        LOG_ERROR("Unable to compile font for OverlayUI.");
+        return NULL;
+    }
+    // populate OverlayData
+    data.font_size = desc.font_size;
+    data.window_size[0] = (size_t) win->r.w;
+    data.window_size[1] = (size_t) win->r.h;
     // copy data to OverlayUI
     ui->data = data;
     // set text color
@@ -150,6 +159,8 @@ void OverlayUI_set_panel_max_lines(OverlayUI* const ui, PanelID id, size_t max_l
 
 void OverlayUI_free(OverlayUI* ui) {
     RFont_font_free(ui->data.font);
+    RFont_close();
+    free((char*) ui->font_bytes);
     free(ui);
 }
 
@@ -171,10 +182,26 @@ unsigned int OverlayUI_handle_events(OverlayUI* const ui, RGFW_window* win) {
             if(RGFW_isPressed(win, RGFW_controlL) || RGFW_isPressed(win, RGFW_controlR)) switch(win->event.key) {
                 case RGFW_equals:
                     data->font_size = MIN(data->font_size + 2, ui->font_size_extrema[1]);
+                    RFont_font_free(data->font);
+                    RFont_close();
+                    RFont_init(data->window_size[0], data->window_size[1]);
+                    data->font = RFont_font_init_data((b8*) ui->font_bytes, 0);
+                    if(data->font == NULL) {
+                        LOG_ERROR("Unable to recompile font for OverlayUI.");
+                        return 1;
+                    }
                     update_panels = 1;
                     break;
                 case RGFW_minus:
                     data->font_size = MAX(data->font_size - 2, ui->font_size_extrema[0]);
+                    RFont_font_free(data->font);
+                    RFont_close();
+                    RFont_init(data->window_size[0], data->window_size[1]);
+                    data->font = RFont_font_init_data((b8*) ui->font_bytes, 0);
+                    if(data->font == NULL) {
+                        LOG_ERROR("Unable to recompile font for OverlayUI.");
+                        return 1;
+                    }
                     update_panels = 1;
                 default: break;
             };
