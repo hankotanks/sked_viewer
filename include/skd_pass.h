@@ -16,7 +16,7 @@ typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
 // user-facing struct to configure SchedulePass
 typedef struct {
     GLfloat color_ant[3], color_src[3];
-    float globe_radius, shell_radius, jd_inc;
+    float globe_radius, shell_radius;
     Shader* vert;
     Shader* frag;
 } SchedulePassDesc;
@@ -32,9 +32,9 @@ void SchedulePass_free(const SchedulePass* const pass);
 // provide debug == 1 for dumpable debug
 // provide debug == 2 for single line
 #ifndef DISABLE_OVERLAY_UI
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui, double dt);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui);
 #else
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam);
 #endif
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);

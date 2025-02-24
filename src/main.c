@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "RGFW/RGFW.h"
-#include "RFont/RFont.h"
 #include "flags.h"
 #include "util/shaders.h"
 #include "globe.h"
@@ -35,16 +34,27 @@
     .z_far = CAMERA_SCALAR * GLOBE_CONFIG.globe_radius * 2.f,\
 }
 
-// SchedulePass configuration options
-#define SKD_PASS_INCREMENT 0.000075f
-
-int main() {
+int main(int argc, const char* argv[]) {
     unsigned int failure;
+    if(argc < 2) {
+        LOG_ERROR("Must provide a schedule (.skd).");
+        return 1;
+    } else if(argc > 2) {
+        LOG_ERROR("Received more command line arguments than expected.");
+        return 7;
+    }
     // build and validate Schedule
     Schedule skd;
-    Schedule_build_from_source(&skd, "./assets/r41192.skd");
+    failure = Schedule_build_from_source(&skd, argv[1]);
+    if(failure) {
+        LOG_ERROR("Unable to parse schedule.");
+        return failure;
+    }
     failure = Schedule_debug_and_validate(skd, 0);
-    if(failure) abort();
+    if(failure) {
+        LOG_ERROR("Scans in Schedule contained references to sources/stations which were undefined.");
+        return 1;
+    };
     // set up window
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
@@ -94,7 +104,6 @@ int main() {
         .color_src = { (GLfloat) 1.f, (GLfloat) 1.f, (GLfloat) 1.f },
         .globe_radius = GLOBE_CONFIG.globe_radius,
         .shell_radius = GLOBE_CONFIG.globe_radius * CAMERA_CONFIG.scalar,
-        .jd_inc = SKD_PASS_INCREMENT,
         .vert = &sched_vert,
         .frag = &sched_frag,
     };
@@ -125,9 +134,9 @@ int main() {
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
 #ifndef DISABLE_OVERLAY_UI
-        SchedulePass_update_and_draw(skd_pass, skd, camera, ui, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
+        SchedulePass_update_and_draw(skd_pass, skd, camera, ui); // TODO: Tie dt to framerate
 #else
-        SchedulePass_update_and_draw(skd_pass, skd, camera, SKD_PASS_INCREMENT);
+        SchedulePass_update_and_draw(skd_pass, skd, camera);
 #endif
         // conclude pass
         RGFW_window_swapBuffers(window);

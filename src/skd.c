@@ -92,7 +92,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     FILE* stream = fopen(path, "rb");
     if(stream == NULL) {
         LOG_ERROR("Schedule couldn't be opened.");
-        return 1;
+        return 2;
     }
     unsigned int failure;
     long stations_idx, sources_idx, scan_idx;

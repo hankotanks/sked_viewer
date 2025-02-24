@@ -1,6 +1,11 @@
 #include "skd_pass.h"
 #include <GL/glew.h>
 #include <stdio.h>
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <time.h>
+#endif
 #include "RFont/RFont.h"
 #include "util/log.h"
 #include "util/mjd.h"
@@ -10,6 +15,9 @@
 #ifndef DISABLE_OVERLAY_UI
 #include "ui.h"
 #endif
+
+#define CLOCK_SPEED_DEFAULT (1LL << 5)
+#define CLOCK_SPEED_MAX (1LL << 11)
 
 typedef enum { EVENT_START, EVENT_FINAL } EventType;
 typedef struct { 
@@ -40,6 +48,7 @@ struct __SKD_PASS_H__SchedulePass {
     size_t max_active_scans;
     ssize_t* active_scans;
     unsigned int paused, restarted;
+    unsigned long long clock, clock_speed;
 };
 
 void update_active_scans(ssize_t* active_scans, size_t count, Event event) {
@@ -231,6 +240,7 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, max_active_scans);
     OverlayUI_set_panel_max_lines(ui, PANEL_PARAMS, 2);
 #endif
+    pass->clock_speed = CLOCK_SPEED_DEFAULT;
     return pass;
 }
 
@@ -281,11 +291,33 @@ void format_fixed_length_double(char* buf, size_t buf_size, double val) {
 }
 #endif
 
-#ifdef DISABLE_OVERLAY_UI
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt) {
+long long get_time_ms() {
+#ifdef _WIN32
+    FILETIME ft;
+    ULARGE_INTEGER uli;
+    GetSystemTimeAsFileTime(&ft);
+    uli.LowPart = ft.dwLowDateTime;
+    uli.HighPart = ft.dwHighDateTime;
+    return (uli.QuadPart / 10000); // Convert to milliseconds
 #else
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui, double dt) {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return ts.tv_sec * 1000LL + ts.tv_nsec / 1000000;
 #endif
+}
+
+#ifdef DISABLE_OVERLAY_UI
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam) {
+#else
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui) {
+#endif
+    // update timestamp and get the change in jd
+    unsigned long long temp = pass->clock;
+    pass->clock = get_time_ms();
+    temp = (pass->clock - temp) * pass->clock_speed;
+    double dt = (double) temp / 86400000.0;
+    // printf("%.15lf\n", dt1);
+    // double dt = 0.000075f;
     // get current greenwich sidereal time (degrees)
     double gmst = jd2gmst(pass->jd);
     // update camera uniforms
@@ -402,20 +434,31 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win) {
     ScanFAM* current;
     switch(win->event.type) {
-        case RGFW_keyPressed: switch(win->event.key) {
-            case RGFW_space: // see if the current observation was advanced
-                pass->paused = !(pass->paused);
-                pass->restarted = 0;
-                break;
-            case RGFW_r:
-                pass->event_idx = 0;
-                for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
-                current = Schedule_get_scan(skd, 0);
-                pass->jd = Datetime_to_jd(current->timestamp);
-                pass->paused = 1;
-                pass->restarted = 1;
-                break;
-            default: break;
-        }
+        case RGFW_keyPressed:
+            if(RGFW_isPressed(NULL, RGFW_shiftL) || RGFW_isPressed(NULL, RGFW_shiftR)) {
+                switch(win->event.key) {
+                    case RGFW_comma:
+                        if(pass->clock_speed > 1) pass->clock_speed /= 2;
+                        break;
+                    case RGFW_period:
+                        if(pass->clock_speed < CLOCK_SPEED_MAX) pass->clock_speed *= 2;
+                    default: break;
+                }
+            } else {
+                switch(win->event.key) {
+                    case RGFW_space: // see if the current observation was advanced
+                        pass->paused = !(pass->paused);
+                        pass->restarted = 0;
+                        break;
+                    case RGFW_r:
+                        pass->event_idx = 0;
+                        for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
+                        current = Schedule_get_scan(skd, 0);
+                        pass->jd = Datetime_to_jd(current->timestamp);
+                        pass->paused = 1;
+                        pass->restarted = 1;
+                    default: break;
+                }
+            }
     }
 }
