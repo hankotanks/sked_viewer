@@ -330,16 +330,12 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     glBindVertexArray(pass->VAO[0]);    
     glDrawArrays(GL_POINTS, 0, (GLsizei) pass->pts_count);
     // forward declare some shared variables
-    ScanFAM* current; size_t i, j, k;
-    // prepare status bar buffer in case schedule is over
+    ScanFAM* current; size_t i, j, k = 0;
 #ifndef DISABLE_OVERLAY_UI
+    // prepare status bar buffer in case schedule is over
     char* status_out[2];
     status_out[0] = NULL;
     status_out[1] = NULL;
-    if(pass->paused && pass->jd <= pass->jd_max) {
-        status_out[0] = "Press [SPACE] to toggle the visualization";
-        OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
-    }
 #endif
     // check if the entire schedule was rendered
     if(pass->jd > pass->jd_max) {
@@ -384,35 +380,33 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
-#ifndef DISABLE_OVERLAY_UI
-        // write scan targets/participants on screen
-        // NOTE: This is placed after the rendering code because it disturbs the opengl state
-        // populate active scan panel
-        char* active_scans_text[k + 2];
-        for(i = 0; i < k + 2; ++i) active_scans_text[i] = NULL;
-        NamedPoint* src;
-        char* id;
-        for(size_t i = 0, j = 0; i < pass->max_active_scans; ++i) {
-            if(pass->active_scans[i] == -1) continue;
-            current = Schedule_get_scan(skd, (size_t) pass->active_scans[i]);
-            id = (char*) HashMap_get(skd.sources_alias, current->source);
-            src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
-            if(src == NULL) continue;
-            active_scans_text[j++] = (id == NULL) ? current->source : id;
-        }
-        size_t active_scans_max_lines;
-        if(active_scans_text[0] == NULL) {
-            char* inactive = "NO SCANS";
-            active_scans_text[0] = inactive;
-            active_scans_max_lines = 1;
-        } else {
-            active_scans_max_lines = k;
-        }
-        OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, active_scans_max_lines);
-        OverlayUI_draw_panel(ui, PANEL_ACTIVE_SCANS, active_scans_text);
-#endif
     }
 #ifndef DISABLE_OVERLAY_UI
+    // write scan targets/participants on screen
+    // NOTE: This is placed after the rendering code because it disturbs the opengl state
+    // populate active scan panel
+    char* active_scans_text[k + 2];
+    for(i = 0; i < k + 2; ++i) active_scans_text[i] = NULL;
+    NamedPoint* src;
+    char* id;
+    for(size_t i = 0, j = 0; i < pass->max_active_scans; ++i) {
+        if(pass->active_scans[i] == -1) continue;
+        current = Schedule_get_scan(skd, (size_t) pass->active_scans[i]);
+        id = (char*) HashMap_get(skd.sources_alias, current->source);
+        src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
+        if(src == NULL) continue;
+        active_scans_text[j++] = (id == NULL) ? current->source : id;
+    }
+    size_t active_scans_max_lines;
+    if(active_scans_text[0] == NULL) {
+        char* inactive = "NO SCANS";
+        active_scans_text[0] = inactive;
+        active_scans_max_lines = 1;
+    } else {
+        active_scans_max_lines = k;
+    }
+    OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, active_scans_max_lines);
+    OverlayUI_draw_panel(ui, PANEL_ACTIVE_SCANS, active_scans_text);
     // draw parameter panel
     char params_out_jd[21], params_out_gmst[17];
     memcpy(params_out_jd, "jd: ", 4);
@@ -426,6 +420,11 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     params_out[1] = params_out_gmst;
     params_out[2] = NULL;
     OverlayUI_draw_panel(ui, PANEL_PARAMS, params_out);
+    // draw status bar message on pause
+    if(pass->paused && pass->jd <= pass->jd_max) {
+        status_out[0] = "Press [SPACE] to toggle the visualization";
+        OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
+    }
 #endif
     // increment current julian date timestamp
     if(!(pass->paused) && pass->jd <= pass->jd_max) pass->jd += dt;
