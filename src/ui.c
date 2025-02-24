@@ -11,14 +11,41 @@
 #define PADDING 5
 #define PANEL_WIDTH_SCALAR 0.7
 
-inline GLsizei Panel_width(Panel sub, GLint window_width, GLsizei pt) {
-    if(sub.line_char_limit == -1) return window_width;
+typedef struct {
+    RFont_font* font;
+    size_t font_size;
+    size_t window_size[2];
+} OverlayData;
+
+typedef struct __UI_H__Panel Panel;
+struct __UI_H__Panel {
+    const Panel* prev;
+    GLint x, y;
+    size_t max_lines;
+    size_t idx;
+    ssize_t line_char_limit;
+};
+
+inline GLsizei Panel_width(Panel sub, size_t window_width, size_t pt) {
+    if(sub.line_char_limit == -1) return (GLsizei) window_width;
     float full = (float) sub.line_char_limit * (float) pt;
     return (GLsizei) (full * PANEL_WIDTH_SCALAR);
 }
 
-inline GLsizei Panel_height(Panel sub, GLsizei pt) {
-    return sub.max_lines * (pt + PADDING);
+inline GLsizei Panel_height(Panel sub, size_t pt) {
+    return (GLsizei) (sub.max_lines * (pt + PADDING));
+}
+
+void Panel_finish(Panel* sub, OverlayData data) {
+    if(sub->prev) {
+        GLsizei w = Panel_width(*(sub->prev), data.window_size[0], data.font_size);
+        sub->x = w + PADDING * 2;
+    } else if(sub->line_char_limit != -1) {
+        sub->x = PADDING;
+    } else {
+        sub->y = (GLint) abs((int) (data.font_size - data.window_size[1] + PADDING));
+    }
+    sub->idx = 0;
 }
 
 Panel Panel_top_left(const Panel* const prev, OverlayData data) {
@@ -31,7 +58,7 @@ Panel Panel_bottom_banner(OverlayData data) {
     return (Panel) {
         .prev = NULL,
         .x = 0,
-        .y = (GLint) abs((int) (data.pt - data.window_size[1] + PADDING)),
+        .y = (GLint) abs((int) (data.font_size - data.window_size[1] + PADDING)),
         .max_lines = 1,
         .idx = 0,
         .line_char_limit = -1,
@@ -41,50 +68,63 @@ Panel Panel_bottom_banner(OverlayData data) {
 // assumes program has been set by OverlayUI
 void Panel_draw(Panel sub, OverlayData data) {
     GLsizei w, h;
-    w = Panel_width(sub, data.window_size[0], data.pt);
-    h = Panel_height(sub, data.pt);
+    w = Panel_width(sub, data.window_size[0], data.font_size);
+    h = Panel_height(sub, data.font_size);
+    GLint x, y;
+    x = sub.x;
+    y = (GLint) data.window_size[1] - sub.y - h;
     glEnable(GL_SCISSOR_TEST);
-    glScissor(sub.x, data.window_size[1] - sub.y - h, w, h);
+    glScissor(x, y, w, h);
     glClear(GL_COLOR_BUFFER_BIT);
     glDisable(GL_SCISSOR_TEST);
 }
 
 void Panel_add_line(Panel* sub, OverlayData data, const char* text) {
     float i, x, y;
-    i = (float) (sub->idx)++;
-    x = (float) (sub->x + PADDING);
-    y = (float) (sub->y + i * (data.pt + PADDING));
+    i = (float) sub->idx++;
+    x = (float) sub->x + PADDING;
+    y = (float) sub->y + i * (float) (data.font_size + PADDING);
     if(sub->line_char_limit == -1) {
-        RFont_draw_text(data.font, text, x, y, data.pt);
+        RFont_draw_text(data.font, text, x, y, (u32) data.font_size);
     } else {
         sub->line_char_limit = MAX(sub->line_char_limit, (ssize_t) strlen(text));
-        RFont_draw_text_len(data.font, text, sub->line_char_limit, x, y, data.pt, 1.f);
+        RFont_draw_text_len(data.font, text, (size_t) sub->line_char_limit, x, y, (u32) data.font_size, 1.f);
     }
 }
 
-void Panel_finish(Panel* sub, OverlayData data) {
-    if(sub->prev) {
-        GLsizei w = Panel_width(*(sub->prev), data.window_size[0], data.pt);
-        sub->x = w + PADDING * 2;
-    } else if(sub->line_char_limit != -1) {
-        sub->x = PADDING;
-    }
-    sub->idx = 0;
-}
+#define FONT_SIZE_MULT 2
 
-unsigned int OverlayUI_init(OverlayUI* ui, OverlayDesc desc, RGFW_window* win) {
+struct __UI_H__OverlayUI {
+    OverlayData data;
+    float text_color[3], panel_color[3];
+    Panel sub[PANEL_COUNT];
+    size_t font_size_extrema[2];
+};
+
+OverlayUI* OverlayUI_init(OverlayDesc desc, RGFW_window* win) {
     // initialize font and populate overlay data
     OverlayData data;
-    RFont_init(win->r.w, win->r.h);
+    if(win->r.w < 0 || win->r.h < 0) {
+        LOG_ERROR("Invalid window dimensions retrived from RGFW. Unable to initialize RFont.");
+        return NULL;
+    }
+    RFont_init((size_t) win->r.w, (size_t) win->r.h);
     // compile font
     data.font = RFont_font_init(desc.font_path);
     if(data.font == NULL) {
         LOG_ERROR("Unable to compile front for OverlayUI.");
-        return 1;
+        return NULL;
     }
-    data.pt = desc.font_size;
-    data.window_size[0] = (GLint) win->r.w;
-    data.window_size[1] = (GLint) win->r.h;
+    data.font_size = desc.font_size;
+    data.window_size[0] = (size_t) win->r.w;
+    data.window_size[1] = (size_t) win->r.h;
+    // initialize OverlayUI object
+    OverlayUI* ui = (OverlayUI*) malloc(sizeof(OverlayUI));
+    if(ui == NULL) {
+        LOG_ERROR("Unable to allocate space for OverlayUI.");
+        return NULL;
+    }
+    // copy data to OverlayUI
     ui->data = data;
     // set text color
     ui->text_color[0] = desc.text_color[0];
@@ -98,47 +138,58 @@ unsigned int OverlayUI_init(OverlayUI* ui, OverlayDesc desc, RGFW_window* win) {
     ui->sub[PANEL_PARAMS] = Panel_top_left(NULL, ui->data);
     ui->sub[PANEL_ACTIVE_SCANS] = Panel_top_left(&(ui->sub[PANEL_PARAMS]), ui->data);
     ui->sub[PANEL_STATUS_BAR] = Panel_bottom_banner(ui->data);
-    return 0;
+    // font size bounds
+    ui->font_size_extrema[0] = ui->data.font_size / FONT_SIZE_MULT;
+    ui->font_size_extrema[1] = ui->data.font_size * FONT_SIZE_MULT;
+    return ui;
 }
 
-void OverlayUI_set_panel_max_lines(OverlayUI* ui, PanelID id, GLsizei max_lines) {
+void OverlayUI_set_panel_max_lines(OverlayUI* const ui, PanelID id, size_t max_lines) {
     ui->sub[id].max_lines = max_lines;
 }
 
-void OverlayUI_free(OverlayUI ui) {
-    RFont_font_free(ui.data.font);
+void OverlayUI_free(OverlayUI* ui) {
+    RFont_font_free(ui->data.font);
+    free(ui);
 }
 
-#define MIN_PT 10
-#define MAX_PT 32
-
-void OverlayUI_handle_events(OverlayUI* ui, RGFW_window* win) {
+unsigned int OverlayUI_handle_events(OverlayUI* const ui, RGFW_window* win) {
     OverlayData* data = &(ui->data);
+    unsigned int update_panels = 0;
     switch(win->event.type) {
         case RGFW_windowResized:
-            RFont_update_framebuffer(win->r.w, win->r.h);
-            data->window_size[0] = (GLint) win->r.w;
-            data->window_size[1] = (GLint) win->r.h;
-            for(size_t i = 0; i < PANEL_COUNT; ++i) {
-                if(ui->sub[i].line_char_limit == -1) 
-                    ui->sub[i].y = (GLint) abs((int) (data->pt - data->window_size[1] + PADDING));
+            if(win->r.w < 0 || win->r.h < 0) {
+                LOG_ERROR("Invalid window dimensions retrieved from RGFW. Unable to update RFont framebuffer.");
+                return 1;
             }
+            RFont_update_framebuffer((size_t) win->r.w, (size_t) win->r.h);
+            data->window_size[0] = (size_t) win->r.w;
+            data->window_size[1] = (size_t) win->r.h;
+            update_panels = 1;
             break;
         case RGFW_keyPressed:
             if(RGFW_isPressed(win, RGFW_controlL) || RGFW_isPressed(win, RGFW_controlR)) switch(win->event.key) {
                 case RGFW_equals:
-                    data->pt = MIN(data->pt + 2, MAX_PT);
+                    data->font_size = MIN(data->font_size + 2, ui->font_size_extrema[1]);
+                    update_panels = 1;
                     break;
                 case RGFW_minus:
-                    data->pt = MAX(data->pt - 2, MIN_PT);
+                    data->font_size = MAX(data->font_size - 2, ui->font_size_extrema[0]);
+                    update_panels = 1;
                 default: break;
             };
             break;
         default: break;
     }
+    if(update_panels) {
+        for(size_t i = 0; i < PANEL_COUNT; ++i) 
+            Panel_finish(&(ui->sub[i]), *data);
+    }
+    return 0;
 }
 
-void OverlayUI_draw_panel(OverlayUI* ui, PanelID id, char* const text[]) {
+void OverlayUI_draw_panel(OverlayUI* const ui, PanelID id, char* const text[]) {
+    // printf("x: %d, y: %d, w: %d, h: %d, win: [%zu, %zu]\n", ui->sub[id].x, ui->sub[id].y, Panel_width(ui->sub[id], ui->data.window_size[0], ui->data.font_size), Panel_height(ui->sub[id], ui->data.font_size), ui->data.window_size[0], ui->data.window_size[1]);
     OverlayData data = ui->data;
     glClearColor(ui->panel_color[0], ui->panel_color[1], ui->panel_color[2], 1.f);
     Panel_draw(ui->sub[id], data);

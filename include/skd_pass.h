@@ -22,7 +22,7 @@ typedef struct {
 } SchedulePassDesc;
 // initialize SchedulePass from a given Schedule
 #ifndef DISABLE_OVERLAY_UI
-SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* ui);
+SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* const ui);
 #else
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd);
 #endif
@@ -32,7 +32,7 @@ void SchedulePass_free(const SchedulePass* const pass);
 // provide debug == 1 for dumpable debug
 // provide debug == 2 for single line
 #ifndef DISABLE_OVERLAY_UI
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* ui, double dt);
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui, double dt);
 #else
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt);
 #endif

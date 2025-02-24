@@ -118,7 +118,7 @@ unsigned int Schedule_build_from_source(Schedule* skd, const char* path) {
     }
     free(line);
     line = NULL;
-    failure = fseek(stream, 0, SEEK_SET);
+    failure = fseek(stream, 0, SEEK_SET) != 0;
     CLOSE_STREAM_ON_FAILURE(stream, failure, 1, "Unable to seek to beginning of schedule.");
     sources_idx = seek_to_section(stream, "$SOURCES");
     CLOSE_STREAM_ON_FAILURE(stream, sources_idx < 0, 1, "Schedule contains no $SOURCES section.");

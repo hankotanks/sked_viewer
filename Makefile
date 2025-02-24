@@ -6,7 +6,7 @@ DIR_OBJ = build
 DIR_LIB = lib
 DIR_LIB_SUB := $(wildcard $(DIR_LIB)/*)
 
-CFLAGS = -Wall -Wextra -fgnu89-inline -I $(DIR_INC) -isystem $(DIR_LIB)
+CFLAGS = -Wall -Wextra -Wconversion -Wpedantic -fgnu89-inline -I $(DIR_INC) -isystem $(DIR_LIB)
 LDLIBS = -lm -lGL -lGLEW -lX11 -lXrandr
 
 SRC = $(wildcard $(DIR_SRC)/*.c)

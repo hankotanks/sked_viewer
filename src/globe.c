@@ -137,7 +137,7 @@ const GlobePass* GlobePass_init(GlobePassDesc desc, const Globe* const mesh) {
         glDeleteBuffers(1, &EBO);
         return NULL;
     }
-    pass->index_count = (GLsizei) mesh->index_count;
+    pass->index_count = mesh->index_count;
     pass->VAO = VAO;
     pass->VBO = VBO;
     pass->EBO = EBO;

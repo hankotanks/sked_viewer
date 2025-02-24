@@ -141,8 +141,8 @@ void CameraController_handle_input(CameraController* const cont, Camera* const c
                 dy = y - cont->mouse_pos_y;
                 cam->azi -= cont->sensitivity * (float) dx;
                 cam->ele += cont->sensitivity * (float) dy;
-                if(cam->ele > M_PI_2 * 0.9) cam->ele = M_PI_2 * 0.9;
-                if(cam->ele < M_PI_2 * -0.9) cam->ele = M_PI_2 * -0.9;
+                if(cam->ele > (float) M_PI_2 * 0.9f) cam->ele = (float) M_PI_2 * 0.9f;
+                if(cam->ele < (float) M_PI_2 * -0.9f) cam->ele = (float) M_PI_2 * -0.9f;
             }
             cont->mouse_pos_x = x;
             cont->mouse_pos_y = y;

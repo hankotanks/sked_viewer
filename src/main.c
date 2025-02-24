@@ -26,17 +26,17 @@
 }
 
 // camera configuration options
-#define CAMERA_SENSITIVITY 0.002
+#define CAMERA_SENSITIVITY 0.002f
 #define CAMERA_SCALAR 4.f
 #define CAMERA_CONFIG (CameraConfig) {\
     .scalar = CAMERA_SCALAR,\
-    .fov = M_PI_2,\
+    .fov = (float) M_PI_2,\
     .z_near = 1.f,\
     .z_far = CAMERA_SCALAR * GLOBE_CONFIG.globe_radius * 2.f,\
 }
 
 // SchedulePass configuration options
-#define SKD_PASS_INCREMENT 0.000075
+#define SKD_PASS_INCREMENT 0.000075f
 
 int main() {
     unsigned int failure;
@@ -82,11 +82,10 @@ int main() {
         .font_path = "./assets/DejaVuSans.ttf",
         .font_size = 20,
         .text_color = { 0.f, 0.f, 0.f },
-        .panel_color = { 0.6, 0.2, 0.2 },
+        .panel_color = { 0.6f, 0.2f, 0.2f },
     };
-    OverlayUI ui;
-    failure = OverlayUI_init(&ui, ui_desc, window);
-    if(failure) abort();
+    OverlayUI* const ui = OverlayUI_init(ui_desc, window);
+    if(ui == NULL) abort();
 #endif
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
@@ -99,7 +98,7 @@ int main() {
         .frag = &sched_frag,
     };
 #ifndef DISABLE_OVERLAY_UI
-    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd, &ui);
+    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd, ui);
 #else
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
 #endif
@@ -115,7 +114,7 @@ int main() {
             SchedulePass_handle_input(skd_pass, skd, window);
             // handle ui overlay events
 #ifndef DISABLE_OVERLAY_UI
-            OverlayUI_handle_events(&ui, window);
+            OverlayUI_handle_events(ui, window);
 #endif
         }
         // clear the display
@@ -125,7 +124,7 @@ int main() {
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
 #ifndef DISABLE_OVERLAY_UI
-        SchedulePass_update_and_draw(skd_pass, skd, camera, &ui, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
+        SchedulePass_update_and_draw(skd_pass, skd, camera, ui, SKD_PASS_INCREMENT); // TODO: Tie dt to framerate
 #else
         SchedulePass_update_and_draw(skd_pass, skd, camera, SKD_PASS_INCREMENT);
 #endif

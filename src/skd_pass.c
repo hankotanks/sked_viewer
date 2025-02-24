@@ -54,7 +54,7 @@ void update_active_scans(ssize_t* active_scans, size_t count, Event event) {
     }
 }
 #ifndef DISABLE_OVERLAY_UI
-SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* ui) {
+SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* const ui) {
 #else
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
 #endif
@@ -269,22 +269,22 @@ unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[])
     }
     size_t buffer_size = j * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, vec, GL_DYNAMIC_DRAW);
-    glDrawArrays(GL_LINES, 0, j / 2);
+    glDrawArrays(GL_LINES, 0, (GLsizei) (j / 2));
     return 1;
 }
 
 #ifndef DISABLE_OVERLAY_UI
 void format_fixed_length_double(char* buf, size_t buf_size, double val) {
-    int int_digits = (val < 1.0) ? 1 : (int) log10(fabs(val)) + 1;
-    int precision = ((int) buf_size > int_digits + 2) ? (int) (buf_size - int_digits - 2) : 0;
-    snprintf(buf, buf_size, "%.*f", precision, val);
+    int dig = (val < 1.0) ? 1 : (int) log10(fabs(val)) + 1;
+    int acc = ((int) buf_size > dig + 2) ? ((int) buf_size - dig - 2) : 0;
+    snprintf(buf, buf_size, "%.*f", acc, val);
 }
 #endif
 
 #ifdef DISABLE_OVERLAY_UI
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, double dt) {
 #else
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* ui, double dt) {
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui, double dt) {
 #endif
     // get current greenwich sidereal time (degrees)
     double gmst = jd2gmst(pass->jd);
@@ -339,7 +339,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         Datetime start_with_offset;
         for(i = 0, k = 0; i < pass->max_active_scans; ++i) {
             if(pass->active_scans[i] == -1) continue;
-            current = Schedule_get_scan(skd, pass->active_scans[i]);
+            current = Schedule_get_scan(skd, (size_t) pass->active_scans[i]);
             for(j = 0; j < strlen(current->ids); ++j) {
                 start_with_offset = Datetime_add_seconds(current->timestamp, current->scan_offsets[j]);
                 mask[j] = (pass->jd < Datetime_to_jd(start_with_offset)) ? 1 : 0;
@@ -356,18 +356,27 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         // write scan targets/participants on screen
         // NOTE: This is placed after the rendering code because it disturbs the opengl state
         // populate active scan panel
-        char* active_scans_text[k + 1];
-        for(i = 0; i <= k; ++i) active_scans_text[i] = NULL;
+        char* active_scans_text[k + 2];
+        for(i = 0; i < k + 2; ++i) active_scans_text[i] = NULL;
         NamedPoint* src;
         char* id;
         for(size_t i = 0, j = 0; i < pass->max_active_scans; ++i) {
             if(pass->active_scans[i] == -1) continue;
-            current = Schedule_get_scan(skd, pass->active_scans[i]);
+            current = Schedule_get_scan(skd, (size_t) pass->active_scans[i]);
             id = (char*) HashMap_get(skd.sources_alias, current->source);
             src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
             if(src == NULL) continue;
             active_scans_text[j++] = (id == NULL) ? current->source : id;
         }
+        size_t active_scans_max_lines;
+        if(active_scans_text[0] == NULL) {
+            char* inactive = "NO SCANS";
+            active_scans_text[0] = inactive;
+            active_scans_max_lines = 1;
+        } else {
+            active_scans_max_lines = k;
+        }
+        OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, active_scans_max_lines);
         OverlayUI_draw_panel(ui, PANEL_ACTIVE_SCANS, active_scans_text);
 #endif
     }

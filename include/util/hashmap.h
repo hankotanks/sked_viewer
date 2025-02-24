@@ -6,8 +6,8 @@
 #include <string.h>
 #include "log.h"
 
-typedef struct __Node Node;
-struct __Node {
+typedef struct __HASHMAP_H__Node Node;
+struct __HASHMAP_H__Node {
     Node* next;
     char contents[];
 };
@@ -50,6 +50,7 @@ static unsigned int HashMap_init(HashMap* hm, size_t bucket_count, size_t bytes_
 }
 
 #pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 static size_t hash(size_t bucket_count, const char* const key) {
     const char* key_inner = key;
     const size_t BASE = 0x811c9dc5;
