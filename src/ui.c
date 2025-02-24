@@ -9,7 +9,7 @@
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-#define PADDING 5
+#define PADDING 8
 
 typedef struct {
     RFont_font* font;
@@ -89,7 +89,7 @@ void Panel_add_line(Panel* sub, OverlayData data, const char* text) {
     float i, x, y;
     i = (float) sub->idx++;
     x = (float) sub->x + PADDING;
-    y = (float) sub->y + i * (float) (data.font_size + PADDING);
+    y = (float) sub->y + i * (float) (data.font_size + PADDING) + ((float) PADDING / 2.f);
     if(sub->line_char_limit == -1) {
         RFont_draw_text(data.font, text, x, y, (u32) data.font_size);
     } else {

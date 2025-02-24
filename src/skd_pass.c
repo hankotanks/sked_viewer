@@ -16,8 +16,8 @@
 #include "ui.h"
 #endif
 
-#define CLOCK_SPEED_DEFAULT (1LL << 5)
-#define CLOCK_SPEED_MAX (1LL << 11)
+#define CLOCK_SPEED_DEFAULT 5
+#define CLOCK_SPEED_MAX 11
 
 typedef enum { EVENT_START, EVENT_FINAL } EventType;
 typedef struct { 
@@ -314,7 +314,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     // update timestamp and get the change in jd
     unsigned long long temp = pass->clock;
     pass->clock = get_time_ms();
-    temp = (pass->clock - temp) * pass->clock_speed;
+    temp = (pass->clock - temp) * (1 << pass->clock_speed);
     double dt = (double) temp / 86400000.0;
     // printf("%.15lf\n", dt1);
     // double dt = 0.000075f;
@@ -421,8 +421,17 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     params_out[2] = NULL;
     OverlayUI_draw_panel(ui, PANEL_PARAMS, params_out);
     // draw status bar message on pause
-    if(pass->paused && pass->jd <= pass->jd_max) {
-        status_out[0] = "Press [SPACE] to toggle the visualization";
+    if(pass->jd <= pass->jd_max) {
+        if(pass->paused) {
+            status_out[0] = "Press [SPACE] to toggle the visualization";
+        } else {
+            char temp[54];
+            memcpy(temp, "Running at ", 11);
+            int written = snprintf(temp + 11, 42, "%u", 1 << pass->clock_speed);
+            memcpy(temp + 11 + written, "x speed. Change speed with [<] and [>]", 38);
+            temp[53] = '\0';
+            status_out[0] = temp;
+        }
         OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
     }
 #endif
@@ -432,32 +441,30 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
 
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win) {
     ScanFAM* current;
-    switch(win->event.type) {
-        case RGFW_keyPressed:
-            if(RGFW_isPressed(NULL, RGFW_shiftL) || RGFW_isPressed(NULL, RGFW_shiftR)) {
-                switch(win->event.key) {
-                    case RGFW_comma:
-                        if(pass->clock_speed > 1) pass->clock_speed /= 2;
-                        break;
-                    case RGFW_period:
-                        if(pass->clock_speed < CLOCK_SPEED_MAX) pass->clock_speed *= 2;
-                    default: break;
-                }
-            } else {
-                switch(win->event.key) {
-                    case RGFW_space: // see if the current observation was advanced
-                        pass->paused = !(pass->paused);
-                        pass->restarted = 0;
-                        break;
-                    case RGFW_r:
-                        pass->event_idx = 0;
-                        for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
-                        current = Schedule_get_scan(skd, 0);
-                        pass->jd = Datetime_to_jd(current->timestamp);
-                        pass->paused = 1;
-                        pass->restarted = 1;
-                    default: break;
-                }
-            }
+    if(win->event.type != RGFW_keyPressed) return;
+    if(RGFW_isPressed(NULL, RGFW_shiftL) || RGFW_isPressed(NULL, RGFW_shiftR)) {
+        switch(win->event.key) {
+            case RGFW_comma:
+                if(pass->clock_speed > 0) pass->clock_speed -= 1;
+                break;
+            case RGFW_period:
+                if(pass->clock_speed < CLOCK_SPEED_MAX) pass->clock_speed += 1;
+            default: break;
+        }
+    } else {
+        switch(win->event.key) {
+            case RGFW_space: // see if the current observation was advanced
+                pass->paused = !(pass->paused);
+                pass->restarted = 0;
+                break;
+            case RGFW_r:
+                pass->event_idx = 0;
+                for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
+                current = Schedule_get_scan(skd, 0);
+                pass->jd = Datetime_to_jd(current->timestamp);
+                pass->paused = 1;
+                pass->restarted = 1;
+            default: break;
+        }
     }
 }
