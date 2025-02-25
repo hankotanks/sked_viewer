@@ -1,4 +1,0 @@
-.TODO
-* Add speed and progress bar at bottom of window
-* Parse individual station durations from skd file
-* Each station should have its own duration

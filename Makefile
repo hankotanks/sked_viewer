@@ -5,6 +5,9 @@ DIR_SRC = src
 DIR_OBJ = build
 DIR_LIB = lib
 DIR_LIB_SUB := $(wildcard $(DIR_LIB)/*)
+DIR_LOG = logs
+DIR_LOG_FILE = $(abspath $(DIR_LOG))/leak_check_$(shell date +"%Y%m%d_%H%M%S").log
+DIR_SKD = examples
 
 CFLAGS = -Wall -Wextra -Wconversion -Wpedantic -fgnu89-inline -I $(DIR_INC) -isystem $(DIR_LIB)
 LDLIBS = -lm -lGL -lGLEW -lX11 -lXrandr
@@ -23,8 +26,14 @@ $(OUT): $(OBJ)
 
 $(DIR_OBJ)/%.o: $(DIR_SRC)/%.c | $(DIR_OBJ)
 	$(CC) $(CFLAGS) -c $< -o $@
+
 $(DIR_OBJ):
 	mkdir -p $(DIR_OBJ)
+
+leak_check: clean
+	$(MAKE) CFLAGS="$(CFLAGS) -ggdb3"
+	-@echo $(DIR_LOG_FILE)
+	valgrind --leak-check=full --show-reachable=yes --error-limit=no --log-file=$(DIR_LOG_FILE) $(abspath $(OUT)) $(wildcard $(DIR_SKD)/*.skd)
 
 clean:
 	rm -rf $(DIR_OBJ)
