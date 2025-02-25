@@ -20,7 +20,7 @@ const Globe* Globe_generate(GlobeConfig cfg) {
         return NULL;
     }
     size_t k_v = 0;
-    vertices[k_v++] = (GLfloat) M_PI;
+    vertices[k_v++] = (GLfloat) 180.f;
     vertices[k_v++] = (GLfloat) 0.f;
     vertices[k_v++] = (GLfloat) 0.f;
     for(size_t i = 0; i < (cfg.stacks - 1); ++i) {
@@ -31,8 +31,8 @@ const Globe* Globe_generate(GlobeConfig cfg) {
             vertices[k_v++] = (GLfloat) 0.f;
         }
     }
-    vertices[k_v++] = (GLfloat) M_PI;
-    vertices[k_v++] = (GLfloat) -M_PI;
+    vertices[k_v++] = (GLfloat) 180.f;
+    vertices[k_v++] = (GLfloat) 180.f;
     vertices[k_v++] = (GLfloat) 0.f;
     size_t index_count = cfg.slices * 6 * (cfg.stacks - 1);
     GLuint* indices = (GLuint*) malloc(index_count * sizeof(GLuint));

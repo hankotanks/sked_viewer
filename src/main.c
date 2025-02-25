@@ -59,6 +59,9 @@ int main(int argc, const char* argv[]) {
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
     glewInit();
+#ifdef DEBUG_MESH
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+#endif
     glClearColor(0.f, 0.f, 0.f, 1.f);
     // configure camera and set aspect
     CameraController* camera_controller = CameraController_init(CAMERA_SENSITIVITY);
