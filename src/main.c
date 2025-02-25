@@ -68,11 +68,10 @@ int main(int argc, const char* argv[]) {
     Camera_set_aspect(camera, window);
     Camera_perspective(camera, CAMERA_CONFIG);
     // set up shaders
-    Shader globe_vert, sched_vert, globe_frag, sched_frag;
-    globe_vert = Shader_init("./shaders/globe.vs", GL_VERTEX_SHADER);
-    sched_vert = Shader_init("./shaders/sched.vs", GL_VERTEX_SHADER);
+    Shader coord_vert, globe_frag, sched_frag;
+    coord_vert = Shader_init("./shaders/lam_phi.vs", GL_VERTEX_SHADER);
     globe_frag = Shader_init("./shaders/globe.fs", GL_FRAGMENT_SHADER);
-    sched_frag = Shader_init("./shaders/sched.fs", GL_FRAGMENT_SHADER);
+    sched_frag = Shader_init("./shaders/paint.fs", GL_FRAGMENT_SHADER);
     // build Globe mesh
     const Globe* const globe_mesh = Globe_generate(GLOBE_CONFIG);
     if(globe_mesh == NULL) abort();
@@ -80,7 +79,7 @@ int main(int argc, const char* argv[]) {
     GlobePassDesc globe_pass_desc = (GlobePassDesc) {
         .globe_radius = GLOBE_CONFIG.globe_radius,
         .globe_tex_offset = GLOBE_TEX_OFFSET,
-        .shader_vert = &globe_vert,
+        .shader_vert = &coord_vert,
         .shader_frag = &globe_frag,
         .path_globe_texture = "./assets/globe.bmp",
     };
@@ -104,7 +103,7 @@ int main(int argc, const char* argv[]) {
         .color_src = { (GLfloat) 1.f, (GLfloat) 1.f, (GLfloat) 1.f },
         .globe_radius = GLOBE_CONFIG.globe_radius,
         .shell_radius = GLOBE_CONFIG.globe_radius * CAMERA_CONFIG.scalar,
-        .vert = &sched_vert,
+        .vert = &coord_vert,
         .frag = &sched_frag,
     };
 #ifndef DISABLE_OVERLAY_UI
@@ -151,8 +150,7 @@ int main(int argc, const char* argv[]) {
     OverlayUI_free(ui);
 #endif
     // destroy shaders
-    Shader_destroy(&globe_vert);
-    Shader_destroy(&sched_vert);
+    Shader_destroy(&coord_vert);
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
     // close window

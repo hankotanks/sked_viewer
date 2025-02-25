@@ -17,5 +17,5 @@ void main() {
     float z = sin(phi) * sin(lam) * rad;
     gl_Position = proj * view * vec4(x, y, z, 1.f);
     f_type = v_type ? 0u : 1u;
-    f_lam_phi = vec3(sin(phi), cos(phi), lam);
+    f_lam_phi = vec3(sin(lam), cos(lam), phi);
 }

@@ -14,7 +14,7 @@ struct __GLOBE_H__Globe {
 const Globe* Globe_generate(GlobeConfig cfg) {
     assert(cfg.stacks > 2 && cfg.slices > 2);
     size_t vertex_count = cfg.slices * (cfg.stacks - 1) + 2;
-    GLfloat* vertices = (GLfloat*) malloc(vertex_count * 2 * sizeof(GLfloat));
+    GLfloat* vertices = (GLfloat*) malloc(vertex_count * 3 * sizeof(GLfloat));
     if(vertices == NULL) {
         LOG_ERROR("Unable to allocate globe vertex buffer.");
         return NULL;
@@ -22,15 +22,18 @@ const Globe* Globe_generate(GlobeConfig cfg) {
     size_t k_v = 0;
     vertices[k_v++] = (GLfloat) M_PI;
     vertices[k_v++] = (GLfloat) 0.f;
+    vertices[k_v++] = (GLfloat) 0.f;
     for(size_t i = 0; i < (cfg.stacks - 1); ++i) {
         float phi = 180.f * (float) (i + 1) / (float) cfg.stacks;
         for(size_t j = 0; j < cfg.slices; ++j) {
-            vertices[k_v++] = 360.f * (float) j / (float) cfg.slices;
-            vertices[k_v++] = phi;
+            vertices[k_v++] = (GLfloat) 360.f * (GLfloat) j / (GLfloat) cfg.slices;
+            vertices[k_v++] = (GLfloat) phi;
+            vertices[k_v++] = (GLfloat) 0.f;
         }
     }
     vertices[k_v++] = (GLfloat) M_PI;
     vertices[k_v++] = (GLfloat) -M_PI;
+    vertices[k_v++] = (GLfloat) 0.f;
     size_t index_count = cfg.slices * 6 * (cfg.stacks - 1);
     GLuint* indices = (GLuint*) malloc(index_count * sizeof(GLuint));
     if(indices == NULL) {
@@ -113,12 +116,12 @@ const GlobePass* GlobePass_init(GlobePassDesc desc, const Globe* const mesh) {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     size_t buffer_size;
-    buffer_size = mesh->vertex_count * 2 * sizeof(GLfloat);
+    buffer_size = mesh->vertex_count * 3 * sizeof(GLfloat);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr) buffer_size, mesh->vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     buffer_size = mesh->index_count * sizeof(GLuint);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr) buffer_size, mesh->indices, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, (GLvoid*) 0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 3, (GLvoid*) 0);
     glEnableVertexAttribArray(0);
     // pass the sampler for the earth texture
     glUseProgram(shader_program);
