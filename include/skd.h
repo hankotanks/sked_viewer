@@ -1,8 +1,7 @@
-#ifndef SKD_H
-#define SKD_H
+#ifndef __SKD_H__
+#define __SKD_H__
 
 #include <stddef.h>
-#include "flags.h"
 #include "util/shaders.h"
 #include "util/mjd.h"
 #include "util/hashmap.h"
@@ -42,4 +41,4 @@ void Schedule_free(Schedule skd);
 // initialize from a skd file
 unsigned int Schedule_build_from_source(Schedule* skd, const char* path);
 
-#endif /* SKD_H */
+#endif /* __SKD_H__ */

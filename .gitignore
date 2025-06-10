@@ -1,7 +1,10 @@
-.cache/
-.vscode/
-build/
-lib/**/*.a
-lib/**/*.o
 vis
+vis.exe
 compile_commands.json
+# sofa
+sofa/*.o
+sofa/*.a
+sofa/*.lib
+# remove cache
+.cache/*
+.vscode/*

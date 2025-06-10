@@ -1,8 +1,7 @@
 #include "camera.h"
 #include <stdint.h>
 #include <math.h>
-#include <GL/glew.h>
-#include "RGFW/RGFW.h"
+#include <glenv.h>
 #include "util/log.h"
 #include "util/lalg.h"
 

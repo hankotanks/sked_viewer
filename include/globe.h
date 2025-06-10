@@ -1,10 +1,9 @@
-#ifndef GLOBE_H
-#define GLOBE_H
+#ifndef __GLOBE_H__
+#define __GLOBE_H__
 
 #include <GL/glew.h>
 #include <math.h>
 #include <stddef.h>
-#include "flags.h"
 #include "util/shaders.h"
 #include "camera.h"
 
@@ -35,4 +34,4 @@ void GlobePass_free(const GlobePass* const pass);
 // update GlobePass (called during each event loop pass)
 void GlobePass_update_and_draw(const GlobePass* const pass, const Camera* const cam);
 
-#endif /* GLOBE_H */
+#endif /* __GLOBE_H__ */

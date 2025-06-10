@@ -1,15 +1,10 @@
-#ifndef SKD_PASS_H
-#define SKD_PASS_H
+#ifndef __SKD_PASS_H__
+#define __SKD_PASS_H__
 
-#include <GL/glew.h>
-#include "RFont/RFont.h"
-#include "flags.h"
+#include <glenv.h>
 #include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
-#ifndef DISABLE_OVERLAY_UI
-#include "ui.h"
-#endif
 
 // contains handles to all schedule related rendering objects
 typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
@@ -39,4 +34,4 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 
-#endif /* SKD_PASS_H */
+#endif /* __SKD_PASS_H__ */

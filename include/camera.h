@@ -1,10 +1,8 @@
-#ifndef CAMERA_H
-#define CAMERA_H
+#ifndef __CAMERA_H__
+#define __CAMERA_H__
 
 #include <stdint.h>
-#include <GL/glew.h>
-#include "RGFW/RGFW.h"
-#include "flags.h"
+#include <glenv.h>
 
 // contains the required information to generate proj/view matrices
 typedef struct __CAMERA_H__Camera Camera;
@@ -37,4 +35,4 @@ void CameraController_free(CameraController* cont);
 // apply user events to Camera
 void CameraController_handle_input(CameraController* const cont, Camera* const cam, const RGFW_window* const win);
 
-#endif /* CAMERA_H */
+#endif /* __CAMERA_H__ */

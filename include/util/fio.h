@@ -1,5 +1,5 @@
-#ifndef FIO_H
-#define FIO_H
+#ifndef __FIO_H__
+#define __FIO_H__
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -34,4 +34,4 @@ static const char* read_file_contents(const char* path) {
     return contents;
 }
 
-#endif /* FIO_H */
+#endif /* __FIO_H__ */

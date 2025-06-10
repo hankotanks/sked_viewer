@@ -1,5 +1,5 @@
-#ifndef HASHMAP_H
-#define HASHMAP_H
+#ifndef __HASHMAP_H__
+#define __HASHMAP_H__
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -121,4 +121,4 @@ static void HashMap_dump(HashMap hm, void (*func)(char*, void*)) {
     }
 }
 
-#endif /* HASHMAP_H */
+#endif /* __HASHMAP_H__ */

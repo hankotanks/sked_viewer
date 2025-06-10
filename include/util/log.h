@@ -1,5 +1,5 @@
-#ifndef LOG_H
-#define LOG_H
+#ifndef __LOG_H__
+#define __LOG_H__
 
 #include <stdio.h>
 
@@ -20,4 +20,4 @@
 }
 #endif
 
-#endif /* LOG_H */
+#endif /* __LOG_H__ */

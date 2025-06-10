@@ -1,12 +1,12 @@
-#ifndef MJD_H
-#define MJD_H
+#ifndef __MJD_H__
+#define __MJD_H__
 
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include "sofa/sofa.h"
-#include "sofa/sofam.h"
+#include <sofa.h>
+#include <sofam.h>
 #include "log.h"
 
 typedef struct {
@@ -133,4 +133,4 @@ static inline double Datetime_to_gmst(Datetime dt) {
     return jd2gmst(Datetime_to_jd(dt));
 }
 
-#endif /* MJD_H */
+#endif /* __MJD_H__ */

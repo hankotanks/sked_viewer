@@ -1,5 +1,5 @@
-#ifndef LALG_H
-#define LALG_H
+#ifndef __LALG_H__
+#define __LALG_H__
 
 #include <GL/glew.h>
 #include <math.h>
@@ -49,4 +49,4 @@ static void look_at(GLfloat* const view, GLfloat* eye, GLfloat* up) {
     view[14] = dot(f, eye); view[15] = 1.f;
 }
 
-#endif /* LALG_H */
+#endif /* __LALG_H__ */

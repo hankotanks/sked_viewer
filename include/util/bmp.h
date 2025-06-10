@@ -1,5 +1,5 @@
-#ifndef BMP_H
-#define BMP_H
+#ifndef __BMP_H__
+#define __BMP_H__
 
 #include <GL/glew.h>
 #include <stdlib.h>
@@ -61,4 +61,4 @@ static unsigned int BitmapImage_load_from_file(BitmapImage* img, const char* pat
     return 0;
 }
 
-#endif /* BMP_H */
+#endif /* __BMP_H__ */

@@ -1,8 +1,6 @@
-#include <GL/glew.h>
+#include <glenv.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "RGFW/RGFW.h"
-#include "flags.h"
 #include "util/shaders.h"
 #include "globe.h"
 #include "camera.h"
@@ -52,10 +50,11 @@ int main(int argc, const char* argv[]) {
     }
     failure = Schedule_debug_and_validate(skd, 0);
     if(failure) {
-        LOG_ERROR("Scans in Schedule contained references to sources/stations which were undefined.");
+        LOG_ERROR("Schedule contained references to sources/stations which were undefined.");
         return 1;
     };
     // set up window
+    
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
     glewInit();

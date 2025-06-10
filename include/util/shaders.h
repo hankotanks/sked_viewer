@@ -1,5 +1,5 @@
-#ifndef SHADERS_H
-#define SHADERS_H
+#ifndef __SHADERS_H__
+#define __SHADERS_H__
 
 #include <GL/glew.h>
 #include <stdio.h>
@@ -148,4 +148,4 @@ static unsigned int assemble_shader_program(GLuint* program, Shader* vert, Shade
     return 0;
 }
 
-#endif /* SHADERS_H */
+#endif /* __SHADERS_H__ */
