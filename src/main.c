@@ -1,12 +1,12 @@
 #include <glenv.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "util/shaders.h"
 #include "globe.h"
 #include "camera.h"
 #include "skd.h"
 #include "skd_pass.h"
 #include "ui.h"
+#include "util/shaders.h"
 
 // window configuration options
 #define WINDOW_TITLE "sked_viewer"
@@ -115,8 +115,10 @@ int main(int argc, const char* argv[]) {
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
 #endif
     if(skd_pass == NULL) abort();
-    // event loop
+    // frame state
     OverlayFrameData ui_data;
+    Action act = ACTION_NONE;
+    // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while(RGFW_window_checkEvent(window)) {
             // handle resizes
@@ -147,7 +149,10 @@ int main(int argc, const char* argv[]) {
         ui_data = SchedulePass_update_and_draw(skd_pass, skd, camera);
 #endif
         // prepare interface for rendering
-        Overlay_prepare_interface(ui, ui_data, window);
+        act = Overlay_prepare_interface(ui, ui_data, window);
+        // process actions
+        SchedulePass_handle_action(skd_pass, skd, act);
+        act = ACTION_NONE;
         // conclude pass
         glenv_render(NK_ANTI_ALIASING_ON);
     }

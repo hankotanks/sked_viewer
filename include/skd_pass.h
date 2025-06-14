@@ -2,10 +2,11 @@
 #define __SKD_PASS_H__
 
 #include <glenv.h>
-#include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
 #include "ui.h"
+#include "action.h"
+#include "util/shaders.h"
 
 // contains handles to all schedule related rendering objects
 typedef struct __SKD_PASS_H__SchedulePass SchedulePass;
@@ -32,16 +33,8 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
 #else
 OverlayFrameData SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam);
 #endif
-// series of actions that can be pass to SchedulePass_handle_controls
-typedef enum {
-    SKD_PASS_NONE = 0,
-    SKD_PASS_FASTER,
-    SKD_PASS_SLOWER,
-    SKD_PASS_PAUSE,
-    SKD_PASS_RESET
-} SchedulePassAction;
 // called by SchedulePass_handle_input
-void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const SchedulePassAction act);
+void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const Action act);
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 

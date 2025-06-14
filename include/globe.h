@@ -4,8 +4,8 @@
 #include <GL/glew.h>
 #include <math.h>
 #include <stddef.h>
-#include "util/shaders.h"
 #include "camera.h"
+#include "util/shaders.h"
 
 // incomplete binding for Globe
 typedef struct __GLOBE_H__Globe Globe;

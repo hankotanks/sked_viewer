@@ -7,12 +7,13 @@
     #include <time.h>
 #endif
 #include <glenv.h>
-#include "util/log.h"
-#include "util/mjd.h"
-#include "util/shaders.h"
 #include "skd.h"
 #include "camera.h"
 #include "ui.h"
+#include "action.h"
+#include "util/log.h"
+#include "util/mjd.h"
+#include "util/shaders.h"
 
 #define CLOCK_SPEED_DEFAULT 5
 #define CLOCK_SPEED_MAX 11
@@ -314,7 +315,10 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     // update timestamp and get the change in jd
     unsigned long long temp = pass->clock;
     pass->clock = get_time_ms();
-    temp = (pass->clock - temp) * (1 << pass->clock_speed);
+    unsigned long long temp_speed = (1 << pass->clock_speed);
+    ui_data.speed = temp_speed;
+    ui_data.paused = pass->paused;
+    temp = (pass->clock - temp) * temp_speed;
     double dt = (double) temp / 86400000.0;
     // printf("%.15lf\n", dt1);
     // double dt = 0.000075f;
@@ -442,22 +446,20 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     return ui_data;
 }
 
-void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const SchedulePassAction act) {
+void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const Action act) {
     ScanFAM* current;
     switch(act) {
-        case SKD_PASS_NONE:
-            return;
-        case SKD_PASS_FASTER:
+        case ACTION_SKD_PASS_FASTER:
             if(pass->clock_speed < CLOCK_SPEED_MAX) pass->clock_speed += 1;
             break;
-        case SKD_PASS_SLOWER:
+        case ACTION_SKD_PASS_SLOWER:
             if(pass->clock_speed > 0) pass->clock_speed -= 1;
             break;
-        case SKD_PASS_PAUSE:
+        case ACTION_SKD_PASS_PAUSE:
             pass->paused = !(pass->paused);
             pass->restarted = 0;
             break;
-        case SKD_PASS_RESET:
+        case ACTION_SKD_PASS_RESET:
             pass->event_idx = 0;
             for(size_t i = 0; i < pass->max_active_scans; ++i) pass->active_scans[i] = -1;
             current = Schedule_get_scan(skd, 0);
@@ -474,19 +476,19 @@ void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGF
     if(RGFW_isPressed(NULL, RGFW_shiftL) || RGFW_isPressed(NULL, RGFW_shiftR)) {
         switch(win->event.key) {
             case RGFW_comma:
-                SchedulePass_handle_action(pass, skd, SKD_PASS_SLOWER);
+                SchedulePass_handle_action(pass, skd, ACTION_SKD_PASS_SLOWER);
                 break;
             case RGFW_period:
-                SchedulePass_handle_action(pass, skd, SKD_PASS_FASTER);
+                SchedulePass_handle_action(pass, skd, ACTION_SKD_PASS_FASTER);
             default: break;
         }
     } else {
         switch(win->event.key) {
             case RGFW_space: // see if the current observation was advanced
-                SchedulePass_handle_action(pass, skd, SKD_PASS_PAUSE);
+                SchedulePass_handle_action(pass, skd, ACTION_SKD_PASS_PAUSE);
                 break;
             case RGFW_r:
-                SchedulePass_handle_action(pass, skd, SKD_PASS_RESET);
+                SchedulePass_handle_action(pass, skd, ACTION_SKD_PASS_RESET);
             default: break;
         }
     }
