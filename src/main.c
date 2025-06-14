@@ -6,9 +6,7 @@
 #include "camera.h"
 #include "skd.h"
 #include "skd_pass.h"
-#ifndef DISABLE_OVERLAY_UI
 #include "ui.h"
-#endif
 
 // window configuration options
 #define WINDOW_TITLE "sked_viewer"
@@ -54,7 +52,6 @@ int main(int argc, const char* argv[]) {
         return 1;
     };
     // set up window
-    
     RGFW_window* window = RGFW_createWindow(WINDOW_TITLE, WINDOW_BOUNDS, RGFW_windowCenter);
     RGFW_window_setMinSize(window, RGFW_AREA(WINDOW_BOUNDS.w, WINDOW_BOUNDS.h));
     glewInit();
@@ -88,8 +85,12 @@ int main(int argc, const char* argv[]) {
     const GlobePass* const globe_pass = GlobePass_init(globe_pass_desc, globe_mesh);
     Globe_free(globe_mesh);
     if(globe_pass == NULL) abort();
-#ifndef DISABLE_OVERLAY_UI
     // configure UI overlay
+    OverlayDesc ui_desc = (OverlayDesc) {
+        .skd_path = argv[1],
+    };
+    Overlay* ui = Overlay_init(ui_desc, window);
+#ifndef DISABLE_OVERLAY_UI
     OverlayDesc ui_desc = (OverlayDesc) {
         .font_path = "./assets/DejaVuSans.ttf",
         .font_size = 20,
@@ -115,9 +116,13 @@ int main(int argc, const char* argv[]) {
 #endif
     if(skd_pass == NULL) abort();
     // event loop
-    while (RGFW_window_shouldClose(window) == RGFW_FALSE) {
-        while (RGFW_window_checkEvent(window)) {
+    OverlayFrameData ui_data;
+    while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
+        while(RGFW_window_checkEvent(window)) {
+            // handle resizes
             if(window->event.type == RGFW_windowResized) glViewport(0, 0, (GLsizei) window->r.w, (GLsizei) window->r.h);
+            // handle user exit
+            else if(window->event.type == RGFW_quit) break; 
             // process user input
             Camera_handle_events(camera, CAMERA_CONFIG, window);
             CameraController_handle_input(camera_controller, camera, window);
@@ -128,6 +133,8 @@ int main(int argc, const char* argv[]) {
             OverlayUI_handle_events(ui, window);
 #endif
         }
+        // prepare glenv frame
+        glenv_new_frame();
         // clear the display
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // update camera
@@ -137,10 +144,12 @@ int main(int argc, const char* argv[]) {
 #ifndef DISABLE_OVERLAY_UI
         SchedulePass_update_and_draw(skd_pass, skd, camera, ui); // TODO: Tie dt to framerate
 #else
-        SchedulePass_update_and_draw(skd_pass, skd, camera);
+        ui_data = SchedulePass_update_and_draw(skd_pass, skd, camera);
 #endif
+        // prepare interface for rendering
+        Overlay_prepare_interface(ui, ui_data, window);
         // conclude pass
-        RGFW_window_swapBuffers(window);
+        glenv_render(NK_ANTI_ALIASING_ON);
     }
     // clean up buffers
     Camera_free(camera);
@@ -155,7 +164,9 @@ int main(int argc, const char* argv[]) {
     Shader_destroy(&coord_vert);
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
-    // close window
+    // close window and free overlay
+    Overlay_free(ui);
+    glenv_deinit();
     RGFW_window_close(window);
     return 0;
 }
