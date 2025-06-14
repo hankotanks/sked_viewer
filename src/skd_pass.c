@@ -61,11 +61,7 @@ void update_active_scans(ssize_t* active_scans, size_t count, Event event) {
         }
     }
 }
-#ifndef DISABLE_OVERLAY_UI
-SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd, OverlayUI* const ui) {
-#else
 SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule skd) {
-#endif
     unsigned int failure;
     // configure shader program and set constant uniforms
     GLuint shader_program;
@@ -234,11 +230,6 @@ SchedulePass* SchedulePass_init_from_schedule(SchedulePassDesc desc, Schedule sk
     // tracking program state
     pass->paused = 1;
     pass->restarted = 1;
-    // prepare overlay widgets
-#ifndef DISABLE_OVERLAY_UI
-    OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, max_active_scans);
-    OverlayUI_set_panel_max_lines(ui, PANEL_PARAMS, 2);
-#endif
     pass->clock_speed = CLOCK_SPEED_DEFAULT;
     return pass;
 }
@@ -282,14 +273,6 @@ unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[])
     return 1;
 }
 
-#ifndef DISABLE_OVERLAY_UI
-void format_fixed_length_double(char* buf, size_t buf_size, double val) {
-    int dig = (val < 1.0) ? 1 : (int) log10(fabs(val)) + 1;
-    int acc = ((int) buf_size > dig + 2) ? ((int) buf_size - dig - 2) : 0;
-    snprintf(buf, buf_size, "%.*f", acc, val);
-}
-#endif
-
 long long get_time_ms() {
 #ifdef _WIN32
     FILETIME ft;
@@ -305,26 +288,21 @@ long long get_time_ms() {
 #endif
 }
 
-#ifdef DISABLE_OVERLAY_UI
-OverlayFrameData SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam) {
-#else
-void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam, OverlayUI* const ui) {
-#endif
-    OverlayFrameData ui_data;
-    ui_data.jd = pass->jd;
+void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam) {
+    OverlayState_set_jd(pass->jd);
     // update timestamp and get the change in jd
     unsigned long long temp = pass->clock;
     pass->clock = get_time_ms();
     unsigned long long temp_speed = (1 << pass->clock_speed);
-    ui_data.speed = temp_speed;
-    ui_data.paused = pass->paused;
+    OverlayState_set_speed(temp_speed);
+    OverlayState_set_paused(pass->paused);
     temp = (pass->clock - temp) * temp_speed;
     double dt = (double) temp / 86400000.0;
     // printf("%.15lf\n", dt1);
     // double dt = 0.000075f;
     // get current greenwich sidereal time (degrees)
     double gmst = jd2gmst(pass->jd);
-    ui_data.gmst = gmst;
+    OverlayState_set_gmst(gmst);
     // update camera uniforms
     Camera_update_uniforms(cam, pass->shader_program);
     // set up OpenGL state
@@ -336,26 +314,12 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
     glDrawArrays(GL_POINTS, 0, (GLsizei) pass->pts_count);
     // forward declare some shared variables
     ScanFAM* current; size_t i, j, k = 0;
-#ifndef DISABLE_OVERLAY_UI
-    // prepare status bar buffer in case schedule is over
-    char* status_out[2];
-    status_out[0] = NULL;
-    status_out[1] = NULL;
-#endif
     // check if the entire schedule was rendered
     if(pass->jd > pass->jd_max) {
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
-#ifndef DISABLE_OVERLAY_UI
-        char status[60];
-        status[59] = '\0';
-        memcpy(status, "Press [R] to restart. Schedule finished at ", 43);
-        format_fixed_length_double(status + 43, 17, pass->jd);
-        status_out[0] = status;
-        OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
-#endif
     } else {
         glBindVertexArray(pass->VAO[1]);  
         glBindBuffer(GL_ARRAY_BUFFER, pass->VBO[1]);
@@ -386,64 +350,19 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
     }
-#ifndef DISABLE_OVERLAY_UI
-    // write scan targets/participants on screen
-    // NOTE: This is placed after the rendering code because it disturbs the opengl state
-    // populate active scan panel
-    char* active_scans_text[k + 2];
-    for(i = 0; i < k + 2; ++i) active_scans_text[i] = NULL;
+    // push currently active sources to OverlayState
     NamedPoint* src;
     char* id;
-    for(size_t i = 0, j = 0; i < pass->max_active_scans; ++i) {
+    for(size_t i = 0; i < pass->max_active_scans; ++i) {
         if(pass->active_scans[i] == -1) continue;
         current = Schedule_get_scan(skd, (size_t) pass->active_scans[i]);
         id = (char*) HashMap_get(skd.sources_alias, current->source);
         src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
         if(src == NULL) continue;
-        active_scans_text[j++] = (id == NULL) ? current->source : id;
+        OverlayState_add_source((id == NULL) ? current->source : id);
     }
-    size_t active_scans_max_lines;
-    if(active_scans_text[0] == NULL) {
-        char* inactive = "NO SCANS";
-        active_scans_text[0] = inactive;
-        active_scans_max_lines = 1;
-    } else {
-        active_scans_max_lines = k;
-    }
-    OverlayUI_set_panel_max_lines(ui, PANEL_ACTIVE_SCANS, active_scans_max_lines);
-    OverlayUI_draw_panel(ui, PANEL_ACTIVE_SCANS, active_scans_text);
-    // draw parameter panel
-    char params_out_jd[21], params_out_gmst[17];
-    memcpy(params_out_jd, "jd: ", 4);
-    params_out_jd[20] = '\0';
-    memcpy(params_out_gmst, "gmst: ", 6);
-    params_out_gmst[16] = '\0';
-    format_fixed_length_double(params_out_jd + 4, 17, pass->jd);
-    format_fixed_length_double(params_out_gmst + 6, 11, gmst);
-    char* params_out[3];
-    params_out[0] = params_out_jd;
-    params_out[1] = params_out_gmst;
-    params_out[2] = NULL;
-    OverlayUI_draw_panel(ui, PANEL_PARAMS, params_out);
-    // draw status bar message on pause
-    if(pass->jd <= pass->jd_max) {
-        if(pass->paused) {
-            status_out[0] = "Press [SPACE] to toggle the visualization";
-        } else {
-            char temp[54];
-            memcpy(temp, "Running at ", 11);
-            int written = snprintf(temp + 11, 42, "%u", 1 << pass->clock_speed);
-            memcpy(temp + 11 + written, "x speed. Change speed with [<] and [>]", 38);
-            temp[53] = '\0';
-            status_out[0] = temp;
-        }
-        OverlayUI_draw_panel(ui, PANEL_STATUS_BAR, status_out);
-    }
-#endif
     // increment current julian date timestamp
     if(!(pass->paused) && pass->jd <= pass->jd_max) pass->jd += dt;
-    // return the UI data
-    return ui_data;
 }
 
 void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const Action act) {

@@ -89,17 +89,8 @@ int main(int argc, const char* argv[]) {
     OverlayDesc ui_desc = (OverlayDesc) {
         .skd_path = argv[1],
     };
+    // initialize Overlay
     Overlay* ui = Overlay_init(ui_desc, window);
-#ifndef DISABLE_OVERLAY_UI
-    OverlayDesc ui_desc = (OverlayDesc) {
-        .font_path = "./assets/DejaVuSans.ttf",
-        .font_size = 20,
-        .text_color = { 0.f, 0.f, 0.f },
-        .panel_color = { 0.6f, 0.2f, 0.2f },
-    };
-    OverlayUI* const ui = OverlayUI_init(ui_desc, window);
-    if(ui == NULL) abort();
-#endif
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
         .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
@@ -109,14 +100,9 @@ int main(int argc, const char* argv[]) {
         .vert = &coord_vert,
         .frag = &sched_frag,
     };
-#ifndef DISABLE_OVERLAY_UI
-    SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd, ui);
-#else
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
-#endif
     if(skd_pass == NULL) abort();
     // frame state
-    OverlayFrameData ui_data;
     Action act = ACTION_NONE;
     // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
@@ -130,10 +116,6 @@ int main(int argc, const char* argv[]) {
             CameraController_handle_input(camera_controller, camera, window);
             // handle pausing/unpausing and resetting the visualization
             SchedulePass_handle_input(skd_pass, skd, window);
-            // handle ui overlay events
-#ifndef DISABLE_OVERLAY_UI
-            OverlayUI_handle_events(ui, window);
-#endif
         }
         // prepare glenv frame
         glenv_new_frame();
@@ -143,13 +125,9 @@ int main(int argc, const char* argv[]) {
         Camera_update(camera);
         // draw passes
         GlobePass_update_and_draw(globe_pass, camera);
-#ifndef DISABLE_OVERLAY_UI
-        SchedulePass_update_and_draw(skd_pass, skd, camera, ui); // TODO: Tie dt to framerate
-#else
-        ui_data = SchedulePass_update_and_draw(skd_pass, skd, camera);
-#endif
+        SchedulePass_update_and_draw(skd_pass, skd, camera);
         // prepare interface for rendering
-        act = Overlay_prepare_interface(ui, ui_data, window);
+        act = Overlay_prepare_interface(ui, window);
         // process actions
         SchedulePass_handle_action(skd_pass, skd, act);
         act = ACTION_NONE;
@@ -162,9 +140,6 @@ int main(int argc, const char* argv[]) {
     GlobePass_free(globe_pass);
     Schedule_free(skd);
     SchedulePass_free(skd_pass);
-#ifndef DISABLE_OVERLAY_UI
-    OverlayUI_free(ui);
-#endif
     // destroy shaders
     Shader_destroy(&coord_vert);
     Shader_destroy(&sched_frag);

@@ -7,7 +7,7 @@ DIR_INC := include
 DIR_SRC := src
 DIR_OBJ := build
 
-CFLAGS := -Wall -Wextra -Wconversion -Wpedantic -I$(DIR_INC) -DLOGGING -DDISABLE_OVERLAY_UI
+CFLAGS := -Wall -Wno-sequence-point -Wno-unsequenced -Wextra -Wconversion -Wpedantic -I$(DIR_INC) -DLOGGING
 	
 $(OUT): $(patsubst $(DIR_SRC)/%.c, $(DIR_OBJ)/%.o, $(wildcard $(DIR_SRC)/*.c))
 # build dependencies
