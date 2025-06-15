@@ -10,7 +10,6 @@
 #include "skd.h"
 #include "camera.h"
 #include "ui.h"
-#include "action.h"
 #include "util/log.h"
 #include "util/mjd.h"
 #include "util/shaders.h"
@@ -289,20 +288,26 @@ long long get_time_ms() {
 }
 
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam) {
-    OverlayState_set_jd(pass->jd);
     // update timestamp and get the change in jd
     unsigned long long temp = pass->clock;
     pass->clock = get_time_ms();
     unsigned long long temp_speed = (1 << pass->clock_speed);
-    OverlayState_set_speed(temp_speed);
-    OverlayState_set_paused(pass->paused);
     temp = (pass->clock - temp) * temp_speed;
     double dt = (double) temp / 86400000.0;
     // printf("%.15lf\n", dt1);
     // double dt = 0.000075f;
     // get current greenwich sidereal time (degrees)
     double gmst = jd2gmst(pass->jd);
-    OverlayState_set_gmst(gmst);
+#ifndef NO_UI
+    // update OverlayControls
+    OverlayControls controls = (OverlayControls) {
+        .jd = pass->jd,
+        .gmst = gmst,
+        .speed = temp_speed,
+        .paused = pass->paused,
+    };
+    Overlay_set_controls(controls);
+#endif
     // update camera uniforms
     Camera_update_uniforms(cam, pass->shader_program);
     // set up OpenGL state
@@ -350,6 +355,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         glUseProgram(0);
         glDisable(GL_DEPTH_TEST);
     }
+#ifndef NO_UI
     // push currently active sources to OverlayState
     NamedPoint* src;
     char* id;
@@ -361,11 +367,12 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         if(src == NULL) continue;
         OverlayState_add_source((id == NULL) ? current->source : id);
     }
+#endif
     // increment current julian date timestamp
     if(!(pass->paused) && pass->jd <= pass->jd_max) pass->jd += dt;
 }
 
-void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const Action act) {
+void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const OverlayAction act) {
     ScanFAM* current;
     switch(act) {
         case ACTION_SKD_PASS_FASTER:

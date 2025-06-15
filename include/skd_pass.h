@@ -4,7 +4,7 @@
 #include <glenv.h>
 #include "skd.h"
 #include "camera.h"
-#include "action.h"
+#include "ui.h"
 #include "util/shaders.h"
 
 // contains handles to all schedule related rendering objects
@@ -25,7 +25,7 @@ void SchedulePass_free(const SchedulePass* const pass);
 // provide debug == 2 for single line
 void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const Camera* const cam);
 // called by SchedulePass_handle_input
-void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const Action act);
+void SchedulePass_handle_action(SchedulePass* const pass, Schedule skd, const OverlayAction act);
 // allows pausing/unpausing and resetting
 void SchedulePass_handle_input(SchedulePass* const pass, Schedule skd, const RGFW_window* const win);
 

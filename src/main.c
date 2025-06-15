@@ -85,12 +85,13 @@ int main(int argc, const char* argv[]) {
     const GlobePass* const globe_pass = GlobePass_init(globe_pass_desc, globe_mesh);
     Globe_free(globe_mesh);
     if(globe_pass == NULL) abort();
-    // configure UI overlay
-    OverlayDesc ui_desc = (OverlayDesc) {
-        .skd_path = argv[1],
-    };
+#ifdef NO_UI
+    // initialize glenv.h (done internally if Overlay is enabled)
+    glenv_init(window);
+#else
     // initialize Overlay
-    Overlay* ui = Overlay_init(ui_desc, window);
+    Overlay_init(argv[1], window);
+#endif
     // configure SchedulePass
     SchedulePassDesc skd_pass_desc = (SchedulePassDesc) {
         .color_ant = { (GLfloat) 1.f, (GLfloat) 0.f, (GLfloat) 0.f },
@@ -102,8 +103,6 @@ int main(int argc, const char* argv[]) {
     };
     SchedulePass* skd_pass = SchedulePass_init_from_schedule(skd_pass_desc, skd);
     if(skd_pass == NULL) abort();
-    // frame state
-    Action act = ACTION_NONE;
     // event loop
     while(RGFW_window_shouldClose(window) == RGFW_FALSE) {
         while(RGFW_window_checkEvent(window)) {
@@ -127,10 +126,11 @@ int main(int argc, const char* argv[]) {
         GlobePass_update_and_draw(globe_pass, camera);
         SchedulePass_update_and_draw(skd_pass, skd, camera);
         // prepare interface for rendering
-        act = Overlay_prepare_interface(ui, window);
+    #ifndef NO_UI
+        Overlay_prepare_interface(window);
         // process actions
-        SchedulePass_handle_action(skd_pass, skd, act);
-        act = ACTION_NONE;
+        SchedulePass_handle_action(skd_pass, skd, Overlay_get_action());
+    #endif
         // conclude pass
         glenv_render(NK_ANTI_ALIASING_ON);
     }
@@ -144,8 +144,7 @@ int main(int argc, const char* argv[]) {
     Shader_destroy(&coord_vert);
     Shader_destroy(&sched_frag);
     Shader_destroy(&globe_frag);
-    // close window and free overlay
-    Overlay_free(ui);
+    // close window and deinit glenv.h
     glenv_deinit();
     RGFW_window_close(window);
     return 0;
