@@ -11,6 +11,9 @@
 // This will NEVER happen in practice, so it's "safe"
 #define MAX_STATION_COUNT 57
 
+#define SIZE_NAME_SRC 8
+#define SIZE_NAME_STA 2
+
 #ifndef NO_UI
 static struct {
     struct nk_context* ctx;
@@ -18,8 +21,8 @@ static struct {
     OverlayControls controls;
     OverlayAction act;
     float row_height;
-    size_t active_scans_curr;
-    char active_scans[MAX_STATION_COUNT * 8 + 1];
+    char active_scans[MAX_STATION_COUNT * SIZE_NAME_SRC + 1];
+    char stations[MAX_STATION_COUNT * SIZE_NAME_STA + 1];
 } Overlay;
 
 void Overlay_init(const char* path, RGFW_window* const win) {
@@ -28,7 +31,8 @@ void Overlay_init(const char* path, RGFW_window* const win) {
     Overlay.path = path;
     Overlay.act = ACTION_NONE;
     Overlay.row_height = ctx->style.font->height + ctx->style.window.padding.y;
-    Overlay.active_scans_curr = 0;
+    Overlay.active_scans[0] = '\0';
+    Overlay.stations[0] = '\0';
 }
 
 OverlayAction Overlay_get_action() {
@@ -41,15 +45,32 @@ void Overlay_set_controls(const OverlayControls controls) {
     Overlay.controls = controls;
 }
 
-void Overlay_add_source(const char* const name) {
-    size_t idx = (Overlay.active_scans_curr++) * 8;
-    strcpy(&(Overlay.active_scans[idx]), name);
+void Overlay_add_active_scan(const char* const name) {
+    size_t len = strlen(Overlay.active_scans);
+    memcpy(&(Overlay.active_scans[len]), name, SIZE_NAME_SRC + 1);
 }
 
-const char* Overlay_pop_source() {
-    if(!Overlay.active_scans_curr) return NULL;
-    size_t idx = (--Overlay.active_scans_curr) * 8;
-    return &(Overlay.active_scans[idx]);
+const char* Overlay_pop_active_scan() {
+    static char curr[SIZE_NAME_SRC + 1] = "";
+    size_t len = strlen(Overlay.active_scans);
+    if(len == 0) return NULL;
+    memcpy(curr, &(Overlay.active_scans[len - SIZE_NAME_SRC]), SIZE_NAME_SRC);
+    Overlay.active_scans[len - SIZE_NAME_SRC] = '\0';
+    return curr;
+}
+
+void Overlay_add_station(const char* const name) {
+    size_t len = strlen(Overlay.stations);
+    memcpy(&(Overlay.stations[len]), name, SIZE_NAME_STA + 1);
+}
+
+const char* Overlay_pop_station() {
+    static char curr[SIZE_NAME_STA + 1] = "";
+    size_t len = strlen(Overlay.stations);
+    if(len == 0) return NULL;
+    memcpy(curr, &(Overlay.stations[len - SIZE_NAME_STA]), SIZE_NAME_STA);
+    Overlay.stations[len - SIZE_NAME_STA] = '\0';
+    return curr;
 }
 
 typedef enum {
@@ -161,12 +182,23 @@ void prepare_widgets_controls(const nk_bool collapsed) {
 void prepare_widgets_active_scans(const nk_bool collapsed) {
     const char* source;
     if(collapsed) {
-        while((source = Overlay_pop_source()));
+        while((source = Overlay_pop_active_scan()));
         return;
     }
     nk_layout_row_dynamic(Overlay.ctx, Overlay.row_height, 1);
-    if(Overlay.active_scans_curr == 0) nk_label(Overlay.ctx, "No active scans", NK_TEXT_ALIGN_LEFT);
-    while((source = Overlay_pop_source())) nk_text(Overlay.ctx, source, 8, NK_TEXT_ALIGN_LEFT);
+    if(!strlen(Overlay.active_scans)) nk_label(Overlay.ctx, "No active scans", NK_TEXT_ALIGN_LEFT);
+    while((source = Overlay_pop_active_scan())) nk_label(Overlay.ctx, source, NK_TEXT_ALIGN_LEFT);
+}
+
+void prepare_widgets_stations(const nk_bool collapsed) {
+    const char* station;
+    if(collapsed) {
+        while((station = Overlay_pop_station()));
+        return;
+    }
+    nk_layout_row_dynamic(Overlay.ctx, Overlay.row_height, 1);
+    if(!strlen(Overlay.stations)) nk_label(Overlay.ctx, "All stations idle", NK_TEXT_ALIGN_LEFT);
+    while((station = Overlay_pop_station())) nk_label(Overlay.ctx, station, NK_TEXT_ALIGN_LEFT);
 }
 
 static Panel OverlayPanels[] = {
@@ -197,6 +229,13 @@ static Panel OverlayPanels[] = {
         .bounds = PANEL_BOUNDS_RIGHT_RATIO(0.2f, 5),
         .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
         .prepare_widgets = prepare_widgets_active_scans,
+    },
+    {
+        .title = "stations",
+        .parent = "active scans",
+        .bounds = PANEL_BOUNDS_RIGHT_RATIO(0.2f, 5),
+        .flags = NK_WINDOW_BORDER | NK_WINDOW_TITLE | NK_WINDOW_MINIMIZABLE,
+        .prepare_widgets = prepare_widgets_stations,
     }
 };
 

@@ -258,6 +258,8 @@ unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[])
         if(mask[i] == (unsigned char) 0) continue;
         key[0] = current->ids[i];
         id = (char*) HashMap_get(skd.stations_ant, key);
+        Overlay_add_station(id);
+        // printf("%s\n", id);
         ant = (NamedPoint*) HashMap_get(skd.stations_pos, id);
         vec[j++] = (GLfloat) ant->lam;
         vec[j++] = (GLfloat) ant->phi;
@@ -365,7 +367,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         id = (char*) HashMap_get(skd.sources_alias, current->source);
         src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
         if(src == NULL) continue;
-        Overlay_add_source((id == NULL) ? current->source : id);
+        Overlay_add_active_scan((id == NULL) ? current->source : id);
     }
 #endif
     // increment current julian date timestamp
