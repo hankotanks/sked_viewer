@@ -365,7 +365,7 @@ void SchedulePass_update_and_draw(SchedulePass* const pass, Schedule skd, const 
         id = (char*) HashMap_get(skd.sources_alias, current->source);
         src = (NamedPoint*) ((id == NULL) ? HashMap_get(skd.sources, current->source) : HashMap_get(skd.sources, id));
         if(src == NULL) continue;
-        OverlayState_add_source((id == NULL) ? current->source : id);
+        Overlay_add_source((id == NULL) ? current->source : id);
     }
 #endif
     // increment current julian date timestamp

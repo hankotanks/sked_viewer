@@ -27,7 +27,7 @@ OverlayAction Overlay_get_action();
 // update the controls
 void Overlay_set_controls(const OverlayControls controls);
 // push a source to the active_scans list
-void OverlayState_add_source(const char* const name);
+void Overlay_add_source(const char* const name);
 // prepare the Overlay for drawing
 void Overlay_prepare_interface(const RGFW_window* const win);
 #endif /* not NO_UI */
