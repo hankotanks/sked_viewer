@@ -1,10 +1,15 @@
 #include "skd.h"
+#if !defined(_WIN32) && !defined(__WIN32__)
 #include <X11/Xresource.h>
+#endif
 #include <stddef.h>
 #include <stdio.h>
 #include <ctype.h>
 #include "util/mjd.h"
 #include "util/hashmap.h"
+#if defined(_WIN32) || defined(__WIN32__)
+#include "util/getline.h"
+#endif
 
 unsigned int Schedule_debug_and_validate(Schedule skd, unsigned int display) {
     char station_key[2]; station_key[1] = '\0';

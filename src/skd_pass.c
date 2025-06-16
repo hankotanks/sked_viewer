@@ -1,10 +1,10 @@
 #include "skd_pass.h"
 #include <GL/glew.h>
 #include <stdio.h>
-#ifdef _WIN32
-    #include <windows.h>
+#if defined(_WIN32) || defined(__WIN32__)
+#include <windows.h>
 #else
-    #include <time.h>
+#include <time.h>
 #endif
 #include <glenv.h>
 #include "skd.h"
@@ -275,7 +275,7 @@ unsigned int render_current_scan(Schedule skd, size_t idx, unsigned char mask[])
 }
 
 long long get_time_ms() {
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__WIN32__)
     FILETIME ft;
     ULARGE_INTEGER uli;
     GetSystemTimeAsFileTime(&ft);

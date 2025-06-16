@@ -1,8 +1,8 @@
 #include <glenv.h>
 // internal dependencies
 #include <GL/glew.h>
-#if defined (__WIN32__)
-  #define RGFW_USE_XDL
+#if defined(_WIN32) || defined(__WIN32__)
+#define RGFW_USE_XDL
 #endif
 #define RGFW_IMPLEMENTATION
 #include <RGFW.h>
